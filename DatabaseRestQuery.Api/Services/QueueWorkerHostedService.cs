@@ -8,6 +8,7 @@ public sealed class QueueWorkerHostedService(
     ILogger<QueueWorkerHostedService> logger,
     IQueueRepository queueRepository,
     IDatabaseExecutor databaseExecutor,
+    IResultExportStorage exportStorage,
     IRequestHistoryRepository historyRepository,
     IResponseQueueCallbackSender callbackSender,
     IAppMetrics metrics,
@@ -62,35 +63,49 @@ public sealed class QueueWorkerHostedService(
 
                 logger.LogInformation("{WorkerId} procesando transactionId {TransactionId}", workerId, claimedJob.TransactionId);
                 var executionResult = await databaseExecutor.ExecuteAsync(claimedJob.Request, stoppingToken);
+                QueryExportInfo? export = null;
+                var responseRows = executionResult.Result;
+                var responseMessage = executionResult.Message;
+
+                if (claimedJob.Request.ExportToS3)
+                {
+                    export = await exportStorage.ExportAsync(
+                        claimedJob.TransactionId,
+                        executionResult.Result,
+                        claimedJob.Request.ExportFormat,
+                        claimedJob.Request.ExportCompress,
+                        stoppingToken);
+                    responseRows = [];
+                    responseMessage = $"{executionResult.Message} Resultado exportado a S3.";
+                }
 
                 await queueRepository.MarkCompletedAsync(
                     claimedJob.TransactionId,
-                    executionResult.Message,
-                    executionResult.Result,
+                    responseMessage,
+                    responseRows,
+                    export,
                     stoppingToken);
+
+                var successResponse = new QueryResponse(
+                    claimedJob.TransactionId,
+                    true,
+                    responseMessage,
+                    responseRows,
+                    null,
+                    export);
 
                 await historyRepository.UpsertResponseAsync(
                     claimedJob.TransactionId,
-                    new QueryResponse(
-                        claimedJob.TransactionId,
-                        true,
-                        executionResult.Message,
-                        executionResult.Result,
-                        null),
+                    successResponse,
                     true,
-                    executionResult.Message,
+                    responseMessage,
                     stoppingToken);
 
                 try
                 {
                     await callbackSender.SendAsync(
                         claimedJob.Request,
-                        new QueryResponse(
-                            claimedJob.TransactionId,
-                            true,
-                            executionResult.Message,
-                            executionResult.Result,
-                            null),
+                        successResponse,
                         stoppingToken);
                 }
                 catch (Exception callbackEx)

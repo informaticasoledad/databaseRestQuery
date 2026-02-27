@@ -60,6 +60,7 @@ public sealed class SqliteQueueRepository(IOptions<QueueOptions> options, IHostE
         await EnsureColumnAsync(connection, "next_attempt_at", "TEXT NULL");
         await EnsureColumnAsync(connection, "partition_key", "TEXT NOT NULL DEFAULT 'default'");
         await EnsureColumnAsync(connection, "request_hash", "TEXT NULL");
+        await EnsureColumnAsync(connection, "export_json", "TEXT NULL");
 
         await using var createRetryIndexCommand = connection.CreateCommand();
         createRetryIndexCommand.CommandText = """
@@ -206,10 +207,11 @@ public sealed class SqliteQueueRepository(IOptions<QueueOptions> options, IHostE
         return new QueueClaimedJob(transactionId, request);
     }
 
-    public async Task MarkCompletedAsync(string transactionId, string message, IReadOnlyList<Dictionary<string, object?>> result, CancellationToken cancellationToken)
+    public async Task MarkCompletedAsync(string transactionId, string message, IReadOnlyList<Dictionary<string, object?>> result, QueryExportInfo? export, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
         var resultJson = JsonSerializer.Serialize(result, JsonOptions);
+        var exportJson = export is null ? null : JsonSerializer.Serialize(export, JsonOptions);
 
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
@@ -217,12 +219,13 @@ public sealed class SqliteQueueRepository(IOptions<QueueOptions> options, IHostE
         await using var command = connection.CreateCommand();
         command.CommandText = """
             UPDATE queue_jobs
-            SET status = 'Completed', message = $message, result_json = $resultJson, error = NULL, worker_id = NULL, next_attempt_at = NULL, updated_at = $updatedAt
+            SET status = 'Completed', message = $message, result_json = $resultJson, export_json = $exportJson, error = NULL, worker_id = NULL, next_attempt_at = NULL, updated_at = $updatedAt
             WHERE transaction_id = $transactionId;
             """;
         command.Parameters.AddWithValue("$transactionId", transactionId);
         command.Parameters.AddWithValue("$message", message);
         command.Parameters.AddWithValue("$resultJson", resultJson);
+        command.Parameters.AddWithValue("$exportJson", (object?)exportJson ?? DBNull.Value);
         command.Parameters.AddWithValue("$updatedAt", now.ToString("O"));
 
         await command.ExecuteNonQueryAsync(cancellationToken);
@@ -278,7 +281,7 @@ public sealed class SqliteQueueRepository(IOptions<QueueOptions> options, IHostE
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT transaction_id, status, message, result_json, error, attempts, max_attempts, next_attempt_at, partition_key, created_at, updated_at, worker_id, request_json
+            SELECT transaction_id, status, message, result_json, error, attempts, max_attempts, next_attempt_at, partition_key, created_at, updated_at, worker_id, request_json, export_json
             FROM queue_jobs
             WHERE transaction_id = $transactionId
             LIMIT 1;
@@ -306,6 +309,13 @@ public sealed class SqliteQueueRepository(IOptions<QueueOptions> options, IHostE
             responseFormat = parsedRequest?.ResponseFormat ?? "json";
         }
 
+        QueryExportInfo? export = null;
+        if (!reader.IsDBNull(13))
+        {
+            var exportJson = reader.GetString(13);
+            export = JsonSerializer.Deserialize<QueryExportInfo>(exportJson, JsonOptions);
+        }
+
         return new QueueJob(
             reader.GetString(0),
             ParseStatus(reader.GetString(1)),
@@ -320,7 +330,8 @@ public sealed class SqliteQueueRepository(IOptions<QueueOptions> options, IHostE
             reader.IsDBNull(8) ? "default" : reader.GetString(8),
             ParseUtc(reader.GetString(9)),
             ParseUtc(reader.GetString(10)),
-            reader.IsDBNull(11) ? null : reader.GetString(11)
+            reader.IsDBNull(11) ? null : reader.GetString(11),
+            export
         );
     }
 
@@ -562,6 +573,11 @@ public sealed class SqliteQueueRepository(IOptions<QueueOptions> options, IHostE
         if (!string.IsNullOrWhiteSpace(request.QueuePartition))
         {
             return request.QueuePartition.Trim().ToLowerInvariant();
+        }
+
+        if (request.Server is null)
+        {
+            return "default";
         }
 
         var normalizedServerType = request.Server.Type.Trim().ToLowerInvariant();

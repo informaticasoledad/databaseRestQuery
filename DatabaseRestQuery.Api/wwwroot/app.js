@@ -30,8 +30,11 @@ const endpointDefinitions = [
       compressResult: false,
       streamResult: false,
       queuePartition: "tenant-a",
-      responseFormat: "json",
-      responseQueueCallback: "https://mi-sistema/callback"
+      responseFormat: "json|jsonl",
+      responseQueueCallback: "https://mi-sistema/callback",
+      exportToS3: false,
+      exportFormat: "jsonl",
+      exportCompress: true
     },
     output: { transactionId: "tx-001", ok: true, message: "Consulta ejecutada.", result: [{ col: "value" }], compressedResult: null }
   },
@@ -106,7 +109,10 @@ const defaultDoQuery = {
   streamResult: false,
   queuePartition: "tenant-demo",
   responseFormat: "json",
-  responseQueueCallback: null
+  responseQueueCallback: null,
+  exportToS3: false,
+  exportFormat: "jsonl",
+  exportCompress: true
 };
 
 function setDefaultBody() {

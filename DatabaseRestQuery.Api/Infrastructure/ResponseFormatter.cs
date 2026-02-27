@@ -19,6 +19,7 @@ public static class ResponseFormatter
             "json" => statusCode.HasValue
                 ? Results.Json(response, statusCode: statusCode)
                 : Results.Ok(response),
+            "jsonl" => ToJsonLinesResult(response, statusCode),
             "xml" => Results.Content(ToXml(response), "application/xml; charset=utf-8", Encoding.UTF8, statusCode ?? StatusCodes.Status200OK),
             "toon" => Results.Text(ToToon(response), "text/plain; charset=utf-8", Encoding.UTF8, statusCode ?? StatusCodes.Status200OK),
             "html_table" => Results.Content(ToHtmlTable(response), "text/html; charset=utf-8", Encoding.UTF8, statusCode ?? StatusCodes.Status200OK),
@@ -46,15 +47,61 @@ public static class ResponseFormatter
 
     private static IResult ToCsvResult(QueryResponse response, char separator, int? statusCode)
     {
-        var csv = ToCsv(response, separator);
-        var bytes = Encoding.UTF8.GetBytes(csv);
+        if (!response.Ok)
+        {
+            var errorCsv = $"transactionId{separator}ok{separator}message\n{response.TransactionId}{separator}false{separator}{response.Message}\n";
+            return Results.Text(errorCsv, "text/csv; charset=utf-8", Encoding.UTF8, statusCode ?? StatusCodes.Status400BadRequest);
+        }
+
+        var bytes = ResultPayloadSerializer.Serialize(response.Result, separator switch
+        {
+            '\t' => "csv_tab",
+            ',' => "csv_comma",
+            _ => "csv_pipeline"
+        }).Bytes;
+        var text = Encoding.UTF8.GetString(bytes);
 
         if (statusCode is { } code && (code < 200 || code > 299))
         {
-            return Results.Text(csv, "text/csv; charset=utf-8", Encoding.UTF8, code);
+            return Results.Text(text, "text/csv; charset=utf-8", Encoding.UTF8, code);
         }
 
         return Results.File(bytes, "text/csv; charset=utf-8", $"result_{response.TransactionId}.csv");
+    }
+
+    private static IResult ToJsonLinesResult(QueryResponse response, int? statusCode)
+    {
+        if (!response.Ok)
+        {
+            var errorLine = JsonSerializer.Serialize(new
+            {
+                transactionId = response.TransactionId,
+                ok = response.Ok,
+                message = response.Message
+            }) + "\n";
+            return Results.Text(errorLine, "application/x-ndjson; charset=utf-8", Encoding.UTF8, statusCode ?? StatusCodes.Status400BadRequest);
+        }
+
+        if (response.Export is not null && response.Result.Count == 0)
+        {
+            var exportLine = JsonSerializer.Serialize(new
+            {
+                transactionId = response.TransactionId,
+                ok = response.Ok,
+                message = response.Message,
+                export = response.Export
+            }) + "\n";
+            return Results.Text(exportLine, "application/x-ndjson; charset=utf-8", Encoding.UTF8, statusCode ?? StatusCodes.Status200OK);
+        }
+
+        var jsonl = ResultPayloadSerializer.ToJsonLines(response.Result);
+        var output = Encoding.UTF8.GetBytes(jsonl);
+        if (statusCode is { } code && (code < 200 || code > 299))
+        {
+            return Results.Text(jsonl, "application/x-ndjson; charset=utf-8", Encoding.UTF8, code);
+        }
+
+        return Results.File(output, "application/x-ndjson; charset=utf-8", $"result_{response.TransactionId}.jsonl");
     }
 
     private static string ToXml(QueryResponse response)
@@ -87,47 +134,6 @@ public static class ResponseFormatter
         {
             var rowJson = JsonSerializer.Serialize(response.Result[i]);
             sb.AppendLine($"row[{i}]: {rowJson}");
-        }
-
-        return sb.ToString();
-    }
-
-    private static string ToCsv(QueryResponse response, char separator)
-    {
-        if (!response.Ok)
-        {
-            return $"transactionId{separator}ok{separator}message\n{Escape(response.TransactionId, separator)}{separator}false{separator}{Escape(response.Message, separator)}\n";
-        }
-
-        if (response.Result.Count == 0)
-        {
-            return string.Empty;
-        }
-
-        var headers = new List<string>();
-        foreach (var row in response.Result)
-        {
-            foreach (var key in row.Keys)
-            {
-                if (!headers.Contains(key, StringComparer.OrdinalIgnoreCase))
-                {
-                    headers.Add(key);
-                }
-            }
-        }
-
-        var sb = new StringBuilder();
-        sb.AppendLine(string.Join(separator, headers.Select(h => Escape(h, separator))));
-
-        foreach (var row in response.Result)
-        {
-            var line = headers.Select(h =>
-            {
-                row.TryGetValue(h, out var value);
-                return Escape(value?.ToString() ?? string.Empty, separator);
-            });
-
-            sb.AppendLine(string.Join(separator, line));
         }
 
         return sb.ToString();
@@ -183,10 +189,4 @@ public static class ResponseFormatter
         return sb.ToString();
     }
 
-    private static string Escape(string value, char separator)
-    {
-        var needsQuotes = value.Contains(separator) || value.Contains('"') || value.Contains('\n') || value.Contains('\r');
-        var normalized = value.Replace("\"", "\"\"");
-        return needsQuotes ? $"\"{normalized}\"" : normalized;
-    }
 }

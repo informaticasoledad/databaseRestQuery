@@ -64,7 +64,18 @@ Archivo: `DatabaseRestQuery.Api/appsettings.json`
       "Type": "sqlserver",
       "Connstr": "Server=genesserver2;Database=mi_bd;User Id=usuario;Password=clave;Encrypt=True;TrustServerCertificate=True;"
     }
-  ]
+  ],
+  "S3Export": {
+    "Enabled": true,
+    "EndpointUrl": "https://s3.eu-central-1.wasabisys.com",
+    "Region": "eu-central-1",
+    "AccessKey": "<access-key>",
+    "SecretKey": "<secret-key>",
+    "Bucket": "mi-bucket",
+    "KeyPrefix": "database-rest-query/exports",
+    "ForcePathStyle": true,
+    "PresignedUrlMinutes": 60
+  }
 }
 ```
 
@@ -84,6 +95,7 @@ Significado rapido:
 - `ResponseQueueTargetItemsAfterPurge`: objetivo tras purga automatica por capacidad (debe ser menor que `ResponseQueueMaxItems`).
 - `CompletedRetentionHours`: compatibilidad con versiones previas; se toma el menor valor entre este y `ResponseRetentionHours`.
 - `Max*`: limites de validacion para proteger el servicio.
+- `S3Export`: destino para exportacion asincrona de resultados grandes (S3/Wasabi).
 
 ## Ejecutar local
 
@@ -313,8 +325,11 @@ Request:
   "compressResult": false,
   "streamResult": false,
   "queuePartition": "tenant-a",
-  "responseFormat": "json",
-  "responseQueueCallback": "https://mi-sistema/callback"
+  "responseFormat": "json|jsonl|csv_tab|csv_comma|csv_pipeline|xml|toon|html_table",
+  "responseQueueCallback": "https://mi-sistema/callback",
+  "exportToS3": false,
+  "exportFormat": "jsonl",
+  "exportCompress": true
 }
 ```
 
@@ -331,9 +346,12 @@ Notas:
 - Si `compressResult=true`, el resultado se devuelve comprimido en ZIP y codificado en Base64.
 - Si `streamResult=true` (solo con `useQueue=false`), la respuesta se transmite en streaming JSON.
 - `queuePartition` permite particionar la cola por cliente/origen/tenant.
-- `responseFormat` soporta: `json`, `xml`, `toon`, `html_table`, `csv_tab`, `csv_comma`, `csv_pipeline`.
+- `responseFormat` soporta: `json`, `jsonl`, `xml`, `toon`, `html_table`, `csv_tab`, `csv_comma`, `csv_pipeline`.
 - El valor predeterminado de `responseFormat` es `json`.
 - `responseQueueCallback` es opcional y solo aplica a peticiones encoladas: al finalizar, el worker envía `POST` con la respuesta a esa URL.
+- `exportToS3=true` exporta el resultado a bucket S3/Wasabi y devuelve metadata+URL temporal.
+- `exportFormat` soporta: `json`, `jsonl`, `csv_tab`, `csv_comma`, `csv_pipeline`.
+- `exportCompress=true` comprime el archivo exportado en `gzip`.
 
 Response:
 
@@ -343,7 +361,17 @@ Response:
   "ok": true,
   "message": "...",
   "result": [],
-  "compressedResult": null
+  "compressedResult": null,
+  "export": {
+    "provider": "s3",
+    "bucket": "mi-bucket",
+    "objectKey": "database-rest-query/exports/2026/02/27/tx_xxx.jsonl.gz",
+    "url": "https://....",
+    "urlExpiresAtUtc": "2026-02-27T12:00:00Z",
+    "format": "jsonl",
+    "compressed": true,
+    "sizeBytes": 12345
+  }
 }
 ```
 
@@ -378,6 +406,10 @@ Con `responseFormat=csv_tab|csv_comma|csv_pipeline`:
 
 Con `responseFormat=html_table`:
 - La respuesta se entrega como HTML con tabla (`text/html`).
+
+Con `responseFormat=jsonl`:
+- La respuesta se entrega como `application/x-ndjson`.
+- Cada fila se emite como una linea JSON.
 
 ## Ejemplos de cadenas de conexion
 

@@ -22,7 +22,8 @@ public sealed record QueueJob(
     string PartitionKey,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    string? WorkerId
+    string? WorkerId,
+    QueryExportInfo? Export
 );
 
 public sealed record PendingJobItem(

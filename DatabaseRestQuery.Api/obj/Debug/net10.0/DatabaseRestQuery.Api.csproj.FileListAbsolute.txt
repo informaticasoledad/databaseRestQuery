@@ -104,4 +104,7 @@
 /Users/carlosleyvagarcia/workfolder/databaseRestQuery/DatabaseRestQuery.Api/bin/Debug/net10.0/DatabaseRestQuery.Api.staticwebassets.runtime.json
 /Users/carlosleyvagarcia/workfolder/databaseRestQuery/DatabaseRestQuery.Api/obj/Debug/net10.0/compressed/aor1bbwfva-{0}-rc13md1fzy-rc13md1fzy.gz
 /Users/carlosleyvagarcia/workfolder/databaseRestQuery/DatabaseRestQuery.Api/obj/Debug/net10.0/compressed/e0jh082sh7-{0}-k4510txjx2-k4510txjx2.gz
-/Users/carlosleyvagarcia/workfolder/databaseRestQuery/DatabaseRestQuery.Api/obj/Debug/net10.0/compressed/l90tkb5jl6-{0}-yvfm5gpyxr-yvfm5gpyxr.gz
+/Users/carlosleyvagarcia/workfolder/databaseRestQuery/DatabaseRestQuery.Api/bin/Debug/net10.0/AWSSDK.Core.dll
+/Users/carlosleyvagarcia/workfolder/databaseRestQuery/DatabaseRestQuery.Api/bin/Debug/net10.0/AWSSDK.S3.dll
+/Users/carlosleyvagarcia/workfolder/databaseRestQuery/DatabaseRestQuery.Api/obj/Debug/net10.0/DatabaseRestQuery.Api.sourcelink.json
+/Users/carlosleyvagarcia/workfolder/databaseRestQuery/DatabaseRestQuery.Api/obj/Debug/net10.0/compressed/l90tkb5jl6-{0}-79g8gi374y-79g8gi374y.gz

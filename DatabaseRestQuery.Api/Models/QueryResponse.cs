@@ -5,5 +5,6 @@ public sealed record QueryResponse(
     bool Ok,
     string Message,
     IReadOnlyList<Dictionary<string, object?>> Result,
-    string? CompressedResult
+    string? CompressedResult,
+    QueryExportInfo? Export = null
 );

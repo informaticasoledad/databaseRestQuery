@@ -20,6 +20,7 @@ public sealed class QueryRequestValidator(IOptions<QueueOptions> options) : IQue
     private static readonly HashSet<string> SupportedResponseFormats =
     [
         "json",
+        "jsonl",
         "xml",
         "toon",
         "htmltable",
@@ -134,7 +135,7 @@ public sealed class QueryRequestValidator(IOptions<QueueOptions> options) : IQue
         var normalizedResponseFormat = NormalizeResponseFormat(request.ResponseFormat);
         if (!SupportedResponseFormats.Contains(normalizedResponseFormat))
         {
-            errors.Add("responseFormat no soportado. Valores permitidos: json, xml, toon, html_table, csv_tab, csv_comma, csv_pipeline.");
+            errors.Add("responseFormat no soportado. Valores permitidos: json, jsonl, xml, toon, html_table, csv_tab, csv_comma, csv_pipeline.");
         }
 
         if (request.CompressResult && normalizedResponseFormat != "json")
@@ -145,6 +146,20 @@ public sealed class QueryRequestValidator(IOptions<QueueOptions> options) : IQue
         if (request.StreamResult && normalizedResponseFormat != "json")
         {
             errors.Add("streamResult solo puede usarse con responseFormat=json.");
+        }
+
+        if (request.ExportToS3)
+        {
+            var normalizedExportFormat = NormalizeResponseFormat(request.ExportFormat);
+            if (normalizedExportFormat is not ("json" or "jsonl" or "csvtab" or "csvcomma" or "csvpipeline"))
+            {
+                errors.Add("exportFormat no soportado. Valores permitidos: json, jsonl, csv_tab, csv_comma, csv_pipeline.");
+            }
+
+            if (request.StreamResult)
+            {
+                errors.Add("exportToS3 no puede usarse con streamResult=true.");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(request.ResponseQueueCallback))

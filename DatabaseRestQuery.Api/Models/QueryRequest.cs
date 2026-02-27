@@ -16,7 +16,10 @@ public sealed record QueryRequest(
     bool StreamResult = false,
     string? QueuePartition = null,
     string ResponseFormat = "json",
-    string? ResponseQueueCallback = null
+    string? ResponseQueueCallback = null,
+    bool ExportToS3 = false,
+    string ExportFormat = "jsonl",
+    bool ExportCompress = true
 );
 
 public sealed record ServerRequest(string Type, string Connstr);

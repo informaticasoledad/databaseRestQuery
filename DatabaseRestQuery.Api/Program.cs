@@ -10,6 +10,7 @@ var configuredQueueOptions = builder.Configuration.GetSection(QueueOptions.Secti
 
 builder.Services.Configure<QueueOptions>(builder.Configuration.GetSection(QueueOptions.SectionName));
 builder.Services.Configure<List<ServerConnectionItem>>(builder.Configuration.GetSection("ServerConnections"));
+builder.Services.Configure<S3ExportOptions>(builder.Configuration.GetSection(S3ExportOptions.SectionName));
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddSingleton<IDataSourceCircuitBreaker, DataSourceCircuitBreaker>();
 builder.Services.AddSingleton<IAppMetrics, AppMetrics>();
@@ -19,6 +20,7 @@ builder.Services.AddSingleton<IQueueResponseWaiter, QueueResponseWaiter>();
 builder.Services.AddSingleton<IQueryRequestValidator, QueryRequestValidator>();
 builder.Services.AddSingleton<IRequestHistoryRepository, SqliteRequestHistoryRepository>();
 builder.Services.AddSingleton<IResponseQueueCallbackSender, ResponseQueueCallbackSender>();
+builder.Services.AddSingleton<IResultExportStorage, S3ResultExportStorage>();
 builder.Services.AddHttpClient("response-queue-callback", httpClient =>
 {
     httpClient.Timeout = TimeSpan.FromSeconds(15);
@@ -51,7 +53,7 @@ app.MapMetrics("/metrics");
 
 if (!IsWorkerOnlyMode(configuredQueueOptions.RunMode))
 {
-    app.MapPost("/doQuery", async (QueryRequest request, IDatabaseExecutor executor, IQueueRepository queueRepository, IQueueEnqueuer queueEnqueuer, IQueueResponseWaiter waiter, IQueryRequestValidator validator, IRequestHistoryRepository historyRepository, IAppMetrics metrics, Microsoft.Extensions.Options.IOptions<QueueOptions> options, Microsoft.Extensions.Options.IOptions<List<ServerConnectionItem>> serverConnectionsOptions, HttpContext httpContext, CancellationToken cancellationToken) =>
+    app.MapPost("/doQuery", async (QueryRequest request, IDatabaseExecutor executor, IQueueRepository queueRepository, IQueueEnqueuer queueEnqueuer, IQueueResponseWaiter waiter, IQueryRequestValidator validator, IRequestHistoryRepository historyRepository, IAppMetrics metrics, IResultExportStorage exportStorage, Microsoft.Extensions.Options.IOptions<QueueOptions> options, Microsoft.Extensions.Options.IOptions<List<ServerConnectionItem>> serverConnectionsOptions, HttpContext httpContext, CancellationToken cancellationToken) =>
     {
         if (!TryResolveRequestServer(request, serverConnectionsOptions.Value, out var effectiveRequest, out var resolveError))
         {
@@ -153,7 +155,8 @@ if (!IsWorkerOnlyMode(configuredQueueOptions.RunMode))
                     true,
                     job.Message ?? "Completado",
                     job.Result ?? [],
-                    normalizedRequest.CompressResult
+                    normalizedRequest.CompressResult,
+                    job.Export
                 ), historyRepository, cancellationToken), normalizedRequest.ResponseFormat),
                 QueueJobStatus.Failed => ResponseFormatter.Format(await SaveAndReturnAsync(new QueryResponse(
                     job.TransactionId,
@@ -199,12 +202,29 @@ if (!IsWorkerOnlyMode(configuredQueueOptions.RunMode))
             }
 
             var result = await executor.ExecuteAsync(normalizedRequest, cancellationToken);
+            QueryExportInfo? export = null;
+            var rows = result.Result;
+            var message = result.Message;
+
+            if (normalizedRequest.ExportToS3 && result.Ok)
+            {
+                export = await exportStorage.ExportAsync(
+                    normalizedRequest.TransactionId!,
+                    result.Result,
+                    normalizedRequest.ExportFormat,
+                    normalizedRequest.ExportCompress,
+                    cancellationToken);
+                rows = [];
+                message = $"{result.Message} Resultado exportado a S3.";
+            }
+
             var response = CreateQueryResponse(
                 normalizedRequest.TransactionId!,
                 result.Ok,
-                result.Message,
-                result.Result,
-                normalizedRequest.CompressResult
+                message,
+                rows,
+                normalizedRequest.CompressResult,
+                export
             );
             await historyRepository.UpsertResponseAsync(normalizedRequest.TransactionId!, response, response.Ok, response.Message, cancellationToken);
             return ResponseFormatter.Format(response, normalizedRequest.ResponseFormat);
@@ -264,7 +284,8 @@ if (!IsWorkerOnlyMode(configuredQueueOptions.RunMode))
                 true,
                 job.Message ?? "Completado",
                 job.Result ?? [],
-                job.CompressResult
+                job.CompressResult,
+                job.Export
             ),
             QueueJobStatus.Failed => new QueryResponse(
                 job.TransactionId,
@@ -335,11 +356,17 @@ static QueryResponse CreateQueryResponse(
     bool ok,
     string message,
     IReadOnlyList<Dictionary<string, object?>> result,
-    bool compressResult)
+    bool compressResult,
+    QueryExportInfo? export = null)
 {
+    if (export is not null)
+    {
+        return new QueryResponse(transactionId, ok, message, [], null, export);
+    }
+
     if (!compressResult || result.Count == 0)
     {
-        return new QueryResponse(transactionId, ok, message, result, null);
+        return new QueryResponse(transactionId, ok, message, result, null, null);
     }
 
     var compressed = ResultCompression.ToZipBase64(result);
@@ -348,7 +375,8 @@ static QueryResponse CreateQueryResponse(
         ok,
         $"{message} Resultado comprimido en ZIP Base64.",
         [],
-        compressed
+        compressed,
+        null
     );
 }
 
