@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DatabaseRestQuery Control Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-orb orb-a"></div>
+  <div class="bg-orb orb-b"></div>
+
+  <header class="topbar">
+    <div>
+      <h1>DatabaseRestQuery</h1>
+      <p>Panel de control operativo</p>
+    </div>
+    <div class="chip">v1</div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="estado">Estado</button>
+    <button class="tab" data-tab="probar">Probar Endpoints</button>
+    <button class="tab" data-tab="docs">Endpoints y Uso</button>
+  </nav>
+
+  <main class="layout">
+    <section id="tab-estado" class="panel active">
+      <div class="actions">
+        <button id="refresh-status">Actualizar</button>
+        <button id="purge-queue" class="danger">Purgar Pendientes</button>
+      </div>
+
+      <div class="cards" id="status-cards"></div>
+
+      <div class="grid-2">
+        <article class="card">
+          <h2>Trabajos Pendientes / Processing</h2>
+          <div class="table-wrap">
+            <table id="pending-table">
+              <thead>
+                <tr>
+                  <th>transactionId</th>
+                  <th>status</th>
+                  <th>attempts</th>
+                  <th>partition</th>
+                  <th>nextAttemptAt</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Métricas (/metrics)</h2>
+          <pre id="metrics-preview">Cargando...</pre>
+        </article>
+      </div>
+
+      <div class="grid-2">
+        <article class="card">
+          <h2>Últimas Peticiones</h2>
+          <div class="table-wrap">
+            <table id="history-requests-table">
+              <thead>
+                <tr>
+                  <th>transactionId</th>
+                  <th>channel</th>
+                  <th>useQueue</th>
+                  <th>createdAt</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Últimas Respuestas (contenido)</h2>
+          <div class="table-wrap">
+            <table id="history-responses-table">
+              <thead>
+                <tr>
+                  <th>transactionId</th>
+                  <th>ok</th>
+                  <th>message</th>
+                  <th>response</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="tab-probar" class="panel">
+      <article class="card">
+        <h2>Cliente de prueba</h2>
+        <div class="form-grid">
+          <label>
+            Endpoint
+            <select id="endpoint-select">
+              <option value="doQuery">POST /doQuery</option>
+              <option value="checkResponse">GET /checkResponse/{transactionId}</option>
+              <option value="queuePendingJobs">GET /queuePendingJobs</option>
+              <option value="queuePurge">POST /queuePurge</option>
+              <option value="health">GET /health</option>
+            </select>
+          </label>
+
+          <label id="txid-wrap" class="hidden">
+            transactionId
+            <input id="txid-input" placeholder="tx-001" />
+          </label>
+        </div>
+
+        <label>
+          Body JSON
+          <textarea id="request-body" spellcheck="false"></textarea>
+        </label>
+
+        <div class="actions">
+          <button id="execute-request">Ejecutar</button>
+        </div>
+
+        <h3>Respuesta</h3>
+        <pre id="response-viewer">Sin ejecutar</pre>
+      </article>
+    </section>
+
+    <section id="tab-docs" class="panel">
+      <article class="card">
+        <h2>Referencia de Endpoints</h2>
+        <div id="endpoint-docs"></div>
+      </article>
+
+      <article class="card">
+        <h2>OpenAPI JSON</h2>
+        <a href="/openapi/v1.json" target="_blank" rel="noreferrer">Abrir /openapi/v1.json</a>
+        <pre id="openapi-viewer">Cargando definición OpenAPI...</pre>
+      </article>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
