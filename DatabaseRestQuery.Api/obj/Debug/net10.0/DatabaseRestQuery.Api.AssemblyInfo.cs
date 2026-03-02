@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DatabaseRestQuery.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4beb2b254e002a3e6d3bb45b841f1771086da857")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a891e9631a660fca086666e6b872a872b097ed70")]
 [assembly: System.Reflection.AssemblyProductAttribute("DatabaseRestQuery.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DatabaseRestQuery.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

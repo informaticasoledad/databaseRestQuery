@@ -126,60 +126,24 @@ Queue__RunMode=Worker dotnet run --project DatabaseRestQuery.Api
 
 ## Ejecutar con Docker
 
-El `Dockerfile` es multi-arquitectura y funciona con imagenes Linux `amd64` y `arm64` (incluyendo Docker Desktop en macOS Intel y Apple Silicon).
+Coloca los drivers Linux de IBM i en `docker/ibmi-odbc/`.
+
+### macOS (Docker Desktop, imagen x86)
+
+1. Purga de datos antiguos (cola SQLite local e imagen previa):
 
 ```bash
-docker build -t database-rest-query .
-docker run --rm -p 8080:8080 database-rest-query
+rm -f DatabaseRestQuery.Api/Data/queue.db DatabaseRestQuery.Api/Data/queue.db-shm DatabaseRestQuery.Api/Data/queue.db-wal
+docker image rm -f database-rest-query:macos-x86 2>/dev/null || true
 ```
 
-API en `http://localhost:8080`.
-
-### Dockerfile especifico para macOS host
-
-Tambien tienes `Dockerfile.macos` para builds hechas desde macOS con carpeta local de drivers:
-- `docker/ibmi-odbc/`
-
-Comando:
+Opcional (limpieza agresiva de cache de build):
 
 ```bash
-docker build -f Dockerfile.macos -t database-rest-query:macos .
-docker run --rm -p 8080:8080 database-rest-query:macos
+docker builder prune -f
 ```
 
-Nota importante:
-- Docker Desktop en macOS ejecuta contenedores Linux. Debes colocar drivers Linux en `docker/ibmi-odbc/` aunque el host sea macOS.
-
-### Incluir driver IBM i ODBC en la imagen
-
-El Dockerfile ya instala `unixODBC`.
-
-Opcion recomendada: copiar los binarios del driver dentro del proyecto en:
-- `docker/ibmi-odbc/`
-
-Debe incluir `libdb2o.so` (y sus dependencias) para que durante `docker build` se copie a `/opt/ibm/iaccess` y se registre automaticamente `IBM i Access ODBC Driver`.
-
-Si no incluyes esos binarios en `docker/ibmi-odbc/`, puedes usar fallback por URL ACS en build time:
-
-```bash
-docker build \
-  --build-arg IBMI_ODBC_URL="https://<url-del-zip-de-acs>" \
-  -t database-rest-query:ibmi .
-```
-
-Alternativa recomendada para ACS real en Linux: instalar paquete `.deb` durante build:
-
-```bash
-docker buildx build \
-  --platform linux/amd64 \
-  -f Dockerfile.macos \
-  --build-arg IBMI_IACCESS_DEB_URL="https://<url-directa>/ibm-iaccess_<version>_amd64.deb" \
-  -t database-rest-query:macos-x86 \
-  --load \
-  .
-```
-
-Si tu imagen base ya tiene configurado el repositorio IBM i Access, tambien puedes instalar por `apt`:
+2. Creacion de imagen:
 
 ```bash
 docker buildx build \
@@ -187,36 +151,47 @@ docker buildx build \
   -f Dockerfile.macos \
   --build-arg IBMI_IACCESS_INSTALL_FROM_APT=true \
   --build-arg IBMI_IACCESS_APT_PACKAGE=ibm-iaccess \
-  --build-arg IBMI_IACCESS_APT_LIST_URL="https://public.dhe.ibm.com/software/ibmi/products/odbc/debs/dists/1.1.0/ibmi-acs-1.1.0.list" \
   -t database-rest-query:macos-x86 \
   --load \
   .
 ```
 
-Esto registra el driver en `/etc/odbcinst.ini` con el nombre:
-- `IBM i Access ODBC Driver`
-
-#### Que es la URL de ACS
-
-- `ACS` significa `IBM i Access Client Solutions`.
-- `IBMI_ODBC_URL` es una URL directa al `.zip` oficial de ACS que contiene el driver Linux (`libdb2o.so`).
-- Esa URL normalmente se obtiene desde el portal oficial de IBM (puede requerir login/licencia).
-
-Ejemplo de uso del argumento:
+3. Levantar contenedor:
 
 ```bash
---build-arg IBMI_ODBC_URL="https://servidor/ibm/acs/ibm-iaccess-acs.zip"
+docker run --rm --platform linux/amd64 -p 8080:8080 \
+  -e DB2_VALIDATE_ON_START=true \
+  -e DB2_VALIDATE_MODE=odbc \
+  -e DB2_VALIDATE_SYSTEM=192.168.38.2 \
+  -e DB2_VALIDATE_USER=QSOLAP_001 \
+  -e DB2_VALIDATE_PASSWORD=INFQS99999 \
+  -e DB2_VALIDATE_DEFAULT_LIBRARIES=NSOL001 \
+  -e DB2_VALIDATE_FAIL_ON_ERROR=true \
+  database-rest-query:macos-x86
 ```
 
-Verificacion rapida dentro del contenedor:
+### Linux
+
+1. Purga de datos antiguos (cola SQLite local e imagen previa):
 
 ```bash
-odbcinst -q -d
+rm -f DatabaseRestQuery.Api/Data/queue.db DatabaseRestQuery.Api/Data/queue.db-shm DatabaseRestQuery.Api/Data/queue.db-wal
+docker image rm -f database-rest-query:linux 2>/dev/null || true
 ```
 
-Debe aparecer `IBM i Access ODBC Driver`.
+Opcional (limpieza agresiva de cache de build):
 
-Validacion opcional al iniciar el contenedor (ACS ODBC con `isql`):
+```bash
+docker builder prune -f
+```
+
+2. Creacion de imagen:
+
+```bash
+docker build -f Dockerfile -t database-rest-query:linux .
+```
+
+3. Levantar contenedor:
 
 ```bash
 docker run --rm -p 8080:8080 \
@@ -227,42 +202,10 @@ docker run --rm -p 8080:8080 \
   -e DB2_VALIDATE_PASSWORD=INFQS99999 \
   -e DB2_VALIDATE_DEFAULT_LIBRARIES=NSOL001 \
   -e DB2_VALIDATE_FAIL_ON_ERROR=true \
-  database-rest-query:macos-x86
+  database-rest-query:linux
 ```
 
-Variables:
-- `DB2_VALIDATE_ON_START=true|false`: habilita validacion en startup.
-- `DB2_VALIDATE_MODE=auto|odbc|db2cli`: para ACS usa `odbc`.
-- `DB2_VALIDATE_SYSTEM`, `DB2_VALIDATE_USER`, `DB2_VALIDATE_PASSWORD`: usados por validate ODBC.
-- `DB2_VALIDATE_DEFAULT_LIBRARIES`: opcional para validate ODBC.
-- `DB2_VALIDATE_CONNSTR`: opcional; si se define, se usa connstr completa en lugar de construirla.
-- `DB2_VALIDATE_FAIL_ON_ERROR=true|false`: si falla validate, aborta o continua inicio.
-
-Build y ejecucion recomendada en x86 (ACS + validate ODBC):
-
-```bash
-docker buildx build \
-  --platform linux/amd64 \
-  -f Dockerfile.macos \
-  --build-arg IBMI_IACCESS_INSTALL_FROM_APT=true \
-  --build-arg IBMI_IACCESS_APT_PACKAGE=ibm-iaccess \
-  --build-arg IBMI_IACCESS_APT_LIST_URL="https://public.dhe.ibm.com/software/ibmi/products/odbc/debs/dists/1.1.0/ibmi-acs-1.1.0.list" \
-  -t database-rest-query:macos-x86 \
-  --load \
-  .
-
-docker run --rm \
-  --platform linux/amd64 \
-  -p 8080:8080 \
-  -e DB2_VALIDATE_ON_START=true \
-  -e DB2_VALIDATE_MODE=odbc \
-  -e DB2_VALIDATE_SYSTEM=192.168.38.2 \
-  -e DB2_VALIDATE_USER=QSOLAP_001 \
-  -e DB2_VALIDATE_PASSWORD=INFQS99999 \
-  -e DB2_VALIDATE_DEFAULT_LIBRARIES=NSOL001 \
-  -e DB2_VALIDATE_FAIL_ON_ERROR=true \
-  database-rest-query:macos-x86
-```
+API en `http://localhost:8080`.
 
 ### Soporte SQL Server legacy con FreeTDS (fallback)
 
@@ -281,20 +224,6 @@ Ejemplo de request para SQL Server legacy:
   "useQueue": false
 }
 ```
-
-### Build multi-plataforma (linux/amd64 + linux/arm64)
-
-```bash
-docker buildx create --use --name multiarch-builder
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  --build-arg IBMI_ODBC_URL="https://<url-del-zip-de-acs>" \
-  -t database-rest-query:latest \
-  --load \
-  .
-```
-
-Si quieres publicar en registry, usa `--push` en lugar de `--load`.
 
 ## Endpoints
 
@@ -520,7 +449,6 @@ curl -X POST http://localhost:8080/doQuery \
 - Las peticiones encoladas quedan persistidas en SQLite.
 - `queuePurge` no elimina trabajos ya `Processing`, `Completed` o `Failed`.
 - Para DB2 iSeries se usa ODBC; la cadena depende del driver instalado.
-- El contenedor incluye `unixODBC` y soporta instalar el driver IBM i ACS via `IBMI_ODBC_URL`.
 - Se aplica validacion de entrada (tipo de servidor, limites de timeout, cantidad de parametros y tamano de query/comando).
 - La cola de respuestas se purga automaticamente por tiempo y por capacidad antes de encolar, para evitar llegar al limite configurado.
 - Existe idempotencia fuerte para colas: mismo `transactionId` con payload distinto devuelve conflicto.
