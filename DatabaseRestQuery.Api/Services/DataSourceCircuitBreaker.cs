@@ -21,10 +21,14 @@ public sealed class DataSourceCircuitBreaker(IOptions<QueueOptions> options) : I
             return;
         }
 
-        if (state.OpenUntilUtc.HasValue && state.OpenUntilUtc.Value > DateTime.UtcNow)
+        var now = DateTime.UtcNow;
+        if (state.OpenUntilUtc.HasValue && state.OpenUntilUtc.Value > now)
         {
             throw new InvalidOperationException($"Circuit breaker abierto para datasource ({key}). Reintente mas tarde.");
         }
+
+        // El periodo abierto expiro: reseteamos estado para permitir trafico nuevamente.
+        _states.TryRemove(key, out _);
     }
 
     public void RegisterFailure(string key)
@@ -34,20 +38,25 @@ public sealed class DataSourceCircuitBreaker(IOptions<QueueOptions> options) : I
             return;
         }
 
+        var now = DateTime.UtcNow;
+        var failureWindowSeconds = Math.Max(1, _options.CircuitBreakerFailureWindowSeconds);
+        var failureWindow = TimeSpan.FromSeconds(failureWindowSeconds);
+
         _states.AddOrUpdate(key,
             _ =>
             {
                 var failures = 1;
                 return failures >= _options.CircuitBreakerFailureThreshold
-                    ? new CircuitState(failures, DateTime.UtcNow.AddSeconds(Math.Max(1, _options.CircuitBreakerOpenSeconds)))
-                    : new CircuitState(failures, null);
+                    ? new CircuitState(failures, now, now.AddSeconds(Math.Max(1, _options.CircuitBreakerOpenSeconds)))
+                    : new CircuitState(failures, now, null);
             },
             (_, previous) =>
             {
-                var failures = previous.Failures + 1;
+                var shouldResetFailures = now - previous.LastFailureUtc > failureWindow;
+                var failures = shouldResetFailures ? 1 : previous.Failures + 1;
                 return failures >= _options.CircuitBreakerFailureThreshold
-                    ? new CircuitState(failures, DateTime.UtcNow.AddSeconds(Math.Max(1, _options.CircuitBreakerOpenSeconds)))
-                    : new CircuitState(failures, previous.OpenUntilUtc);
+                    ? new CircuitState(failures, now, now.AddSeconds(Math.Max(1, _options.CircuitBreakerOpenSeconds)))
+                    : new CircuitState(failures, now, null);
             });
     }
 
@@ -61,5 +70,5 @@ public sealed class DataSourceCircuitBreaker(IOptions<QueueOptions> options) : I
         _states.TryRemove(key, out _);
     }
 
-    private sealed record CircuitState(int Failures, DateTime? OpenUntilUtc);
+    private sealed record CircuitState(int Failures, DateTime LastFailureUtc, DateTime? OpenUntilUtc);
 }

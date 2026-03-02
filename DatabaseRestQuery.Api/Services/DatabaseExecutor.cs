@@ -81,6 +81,10 @@ public sealed class DatabaseExecutor(
             metrics.RecordDbExecution(server.Type, false, stopwatch.Elapsed.TotalMilliseconds);
             throw new TimeoutException("Tiempo de ejecucion excedido.");
         }
+        catch (OperationCanceledException) when (upstreamToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch
         {
             circuitBreaker.RegisterFailure(dataSourceKey);
@@ -149,7 +153,7 @@ public sealed class DatabaseExecutor(
                 circuitBreaker.RegisterSuccess(dataSourceKey);
                 metrics.RecordDbExecution(server.Type, true, stopwatch.Elapsed.TotalMilliseconds);
             }
-            else
+            else if (!cancellationToken.IsCancellationRequested)
             {
                 circuitBreaker.RegisterFailure(dataSourceKey);
                 metrics.RecordDbExecution(server.Type, false, stopwatch.Elapsed.TotalMilliseconds);

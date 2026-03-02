@@ -14,6 +14,7 @@ public sealed class QueueOptions
     public bool EnableCircuitBreaker { get; set; } = true;
     public int CircuitBreakerFailureThreshold { get; set; } = 5;
     public int CircuitBreakerOpenSeconds { get; set; } = 30;
+    public int CircuitBreakerFailureWindowSeconds { get; set; } = 120;
     public bool EnablePartitionSharding { get; set; } = true;
     public bool EnableBufferedEnqueue { get; set; } = true;
     public int EnqueueBufferCapacity { get; set; } = 5000;
