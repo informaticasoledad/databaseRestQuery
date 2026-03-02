@@ -54,7 +54,7 @@ public sealed class S3ResultExportStorage(IOptions<S3ExportOptions> options) : I
         {
             ServiceURL = endpointUrl,
             ForcePathStyle = _options.ForcePathStyle,
-            RegionEndpoint = RegionEndpoint.GetBySystemName(region)
+            AuthenticationRegion = region
         };
 
         using var client = new AmazonS3Client(accessKey, secretKey, s3Config);
