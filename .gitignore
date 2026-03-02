@@ -1,3 +1,11 @@
 .env
 .env.*
 !.env.example
+
+# .NET build artifacts
+**/obj/
+**/bin/
+
+# Keep required Docker IBM i ODBC binaries in repo
+!docker/ibmi-odbc/bin/
+!docker/ibmi-odbc/bin/**

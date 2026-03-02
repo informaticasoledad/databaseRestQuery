@@ -104,6 +104,51 @@ Significado rapido:
 - `Max*`: limites de validacion para proteger el servicio.
 - `S3Export`: destino para exportacion asincrona de resultados grandes (S3/Wasabi).
 
+## Cadenas de conexion tipo por motor
+
+Estas plantillas sirven para `server.connstr` (o `ServerConnections[].Connstr`):
+
+### PostgreSQL (`server.type=postgresql`)
+
+```text
+Host=<pg-host>;Port=5432;Database=<database>;Username={{DB_USER}};Password={{DB_PWD}};Pooling=true;Timeout=15;Command Timeout=30;
+```
+
+### SQL Server moderno (`server.type=sqlserver`)
+
+```text
+Server=<sql-host>,1433;Database=<database>;User Id={{DB_USER}};Password={{DB_PWD}};Encrypt=True;TrustServerCertificate=True;Application Name=DatabaseRestQuery;
+```
+
+### SQL Server legacy por ODBC (`server.type=sqlserver_legacy`)
+
+```text
+Driver={ODBC Driver 17 for SQL Server};Server=<sql-host>,1433;Database=<database>;Uid={{DB_USER}};Pwd={{DB_PWD}};Encrypt=yes;TrustServerCertificate=yes;
+```
+
+### SQL Server legacy con FreeTDS (`server.type=freetds`)
+
+```text
+Driver=FreeTDS;Server=<sql-host>;Port=1433;Database=<database>;Uid={{DB_USER}};Pwd={{DB_PWD}};TDS_Version=7.2;ClientCharset=UTF-8;
+```
+
+### MySQL / MariaDB (`server.type=mysql`)
+
+```text
+Server=<mysql-host>;Port=3306;Database=<database>;User ID={{DB_USER}};Password={{DB_PWD}};Pooling=true;MinimumPoolSize=0;MaximumPoolSize=50;ConnectionTimeout=15;DefaultCommandTimeout=30;
+```
+
+### IBM i DB2 por ODBC (`server.type=db2-iseries` o `db2_iseries`)
+
+```text
+Driver={IBM i Access ODBC Driver};System=<iseries-host>;Database=<iseries-db>;Uid={{DB_USER}};Pwd={{DB_PWD}};Naming=0;DefaultLibraries=<default-lib>;CONNTYPE=1;
+```
+
+Notas:
+- Usa variables de entorno (`{{DB_USER}}`, `{{DB_PWD}}`) y evita credenciales en claro en git.
+- Para SQL Server antiguo, suele funcionar mejor `sqlserver_legacy` o `freetds`.
+- En IBM i, `CONNTYPE=1` suele usarse para lectura y `CONNTYPE=0` para escritura.
+
 ## Ejecutar local
 
 ```bash

@@ -210,25 +210,48 @@ function renderHistory(items) {
 }
 
 async function fetchJson(url, init) {
-  const res = await fetch(url, init);
+  const res = await fetchWithTimeout(url, init, 45000);
   const text = await res.text();
   let body;
   try { body = text ? JSON.parse(text) : null; } catch { body = text; }
   return { ok: res.ok, status: res.status, body };
 }
 
+async function fetchWithTimeout(url, init = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function refreshStatus() {
-  const [health, pending, metrics, history] = await Promise.all([
+  const [health, pending, metrics, history] = await Promise.allSettled([
     fetchJson("/health"),
     fetchJson("/queuePendingJobs"),
-    fetch("/metrics").then(r => r.text()),
+    fetchWithTimeout("/metrics", {}, 12000).then(r => r.text()),
     fetchJson("/historyRecent?limit=30")
   ]);
 
-  if (health.ok) renderKpis(health.body);
-  if (pending.ok) renderPending(pending.body);
-  if (history.ok) renderHistory(history.body);
-  metricsPreview.textContent = metrics.split("\n").slice(0, 60).join("\n");
+  if (health.status === "fulfilled" && health.value.ok) {
+    renderKpis(health.value.body);
+  }
+
+  if (pending.status === "fulfilled" && pending.value.ok) {
+    renderPending(pending.value.body);
+  }
+
+  if (history.status === "fulfilled" && history.value.ok) {
+    renderHistory(history.value.body);
+  }
+
+  if (metrics.status === "fulfilled") {
+    metricsPreview.textContent = metrics.value.split("\n").slice(0, 60).join("\n");
+  } else {
+    metricsPreview.textContent = "No se pudo cargar /metrics.";
+  }
 }
 
 async function purgeQueue() {
@@ -269,15 +292,23 @@ async function executeRequest() {
   }
 
   showProgress(progressText);
+  let result;
   try {
-    const result = await fetchJson(url, init);
-    responseViewer.textContent = JSON.stringify({ status: result.status, body: result.body }, null, 2);
-    await refreshStatus();
+    result = await fetchJson(url, init);
   } catch (err) {
-    responseViewer.textContent = JSON.stringify({ error: String(err) }, null, 2);
+    const timedOut = err && err.name === "AbortError";
+    result = {
+      status: timedOut ? 408 : 500,
+      body: { ok: false, message: timedOut ? "Timeout de cliente al esperar respuesta." : String(err) }
+    };
   } finally {
     hideProgress();
   }
+
+  responseViewer.textContent = JSON.stringify({ status: result.status, body: result.body }, null, 2);
+  refreshStatus().catch(() => {
+    // Evita bloquear la UI si una llamada de estado falla o queda lenta.
+  });
 }
 
 function showProgress(message) {

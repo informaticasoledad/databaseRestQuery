@@ -233,6 +233,10 @@ input, select {
   padding: 16px;
 }
 
+.progress-overlay.hidden {
+  display: none;
+}
+
 body.with-overlay {
   cursor: progress;
 }
