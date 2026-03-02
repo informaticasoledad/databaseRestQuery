@@ -19,15 +19,22 @@ public sealed class S3ResultExportStorage(IOptions<S3ExportOptions> options) : I
         bool compress,
         CancellationToken cancellationToken)
     {
+        var endpointUrl = EnvironmentTemplateResolver.ResolveRequired(_options.EndpointUrl, "S3Export.EndpointUrl");
+        var region = EnvironmentTemplateResolver.ResolveRequired(_options.Region, "S3Export.Region");
+        var accessKey = EnvironmentTemplateResolver.ResolveRequired(_options.AccessKey, "S3Export.AccessKey");
+        var secretKey = EnvironmentTemplateResolver.ResolveRequired(_options.SecretKey, "S3Export.SecretKey");
+        var bucket = EnvironmentTemplateResolver.ResolveRequired(_options.Bucket, "S3Export.Bucket");
+        var keyPrefixValue = EnvironmentTemplateResolver.ResolveRequired(_options.KeyPrefix, "S3Export.KeyPrefix");
+
         if (!_options.Enabled)
         {
             throw new InvalidOperationException("Exportacion S3 no habilitada. Configure S3Export.Enabled=true.");
         }
 
-        if (string.IsNullOrWhiteSpace(_options.EndpointUrl) ||
-            string.IsNullOrWhiteSpace(_options.AccessKey) ||
-            string.IsNullOrWhiteSpace(_options.SecretKey) ||
-            string.IsNullOrWhiteSpace(_options.Bucket))
+        if (string.IsNullOrWhiteSpace(endpointUrl) ||
+            string.IsNullOrWhiteSpace(accessKey) ||
+            string.IsNullOrWhiteSpace(secretKey) ||
+            string.IsNullOrWhiteSpace(bucket))
         {
             throw new InvalidOperationException("Configuracion S3 incompleta. Revise S3Export en appsettings.");
         }
@@ -36,7 +43,7 @@ public sealed class S3ResultExportStorage(IOptions<S3ExportOptions> options) : I
         var payload = compress ? ResultPayloadSerializer.Gzip(bytes) : bytes;
         var normalizedFormat = ResultPayloadSerializer.NormalizeFormat(format);
 
-        var keyPrefix = _options.KeyPrefix.Trim('/');
+        var keyPrefix = keyPrefixValue.Trim('/');
         var objectKey = $"{keyPrefix}/{DateTime.UtcNow:yyyy/MM/dd}/{transactionId}_{Guid.NewGuid():N}.{extension}";
         if (compress)
         {
@@ -45,17 +52,17 @@ public sealed class S3ResultExportStorage(IOptions<S3ExportOptions> options) : I
 
         var s3Config = new AmazonS3Config
         {
-            ServiceURL = _options.EndpointUrl,
+            ServiceURL = endpointUrl,
             ForcePathStyle = _options.ForcePathStyle,
-            RegionEndpoint = RegionEndpoint.GetBySystemName(_options.Region)
+            RegionEndpoint = RegionEndpoint.GetBySystemName(region)
         };
 
-        using var client = new AmazonS3Client(_options.AccessKey, _options.SecretKey, s3Config);
+        using var client = new AmazonS3Client(accessKey, secretKey, s3Config);
         await using var stream = new MemoryStream(payload);
 
         var putRequest = new PutObjectRequest
         {
-            BucketName = _options.Bucket,
+            BucketName = bucket,
             Key = objectKey,
             InputStream = stream,
             AutoCloseStream = false,
@@ -72,7 +79,7 @@ public sealed class S3ResultExportStorage(IOptions<S3ExportOptions> options) : I
         var expiresAt = DateTime.UtcNow.AddMinutes(Math.Max(1, _options.PresignedUrlMinutes));
         var url = client.GetPreSignedURL(new GetPreSignedUrlRequest
         {
-            BucketName = _options.Bucket,
+            BucketName = bucket,
             Key = objectKey,
             Verb = HttpVerb.GET,
             Expires = expiresAt
@@ -80,7 +87,7 @@ public sealed class S3ResultExportStorage(IOptions<S3ExportOptions> options) : I
 
         return new QueryExportInfo(
             "s3",
-            _options.Bucket,
+            bucket,
             objectKey,
             url,
             expiresAt,

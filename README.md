@@ -57,27 +57,34 @@ Archivo: `DatabaseRestQuery.Api/appsettings.json`
     {
       "ConnectionName": "as400",
       "Type": "db2-iseries",
-      "Connstr": "Driver={IBM i Access ODBC Driver};System=192.168.38.2;Database=S786C9A1;Uid=usuario;Pwd=clave;Naming=0;DefaultLibraries=NSOL001;"
+      "Connstr": "Driver={IBM i Access ODBC Driver};System=<iseries-host>;Database=<iseries-db>;Uid={{DB_USER}};Pwd={{DB_PWD}};Naming=0;DefaultLibraries=<default-lib>;"
     },
     {
       "ConnectionName": "genesserver2",
       "Type": "sqlserver",
-      "Connstr": "Server=genesserver2;Database=mi_bd;User Id=usuario;Password=clave;Encrypt=True;TrustServerCertificate=True;"
+      "Connstr": "Server=<sql-host>;Database=<database>;User Id={{DB_USER}};Password={{DB_PWD}};Encrypt=True;TrustServerCertificate=True;"
     }
   ],
   "S3Export": {
     "Enabled": true,
-    "EndpointUrl": "https://s3.eu-central-1.wasabisys.com",
-    "Region": "eu-central-1",
-    "AccessKey": "<access-key>",
-    "SecretKey": "<secret-key>",
-    "Bucket": "mi-bucket",
+    "EndpointUrl": "https://s3.wasabisys.com",
+    "Region": "us-east-1",
+    "AccessKey": "{{S3_ACCESS_KEY}}",
+    "SecretKey": "{{S3_SECRET_KEY}}",
+    "Bucket": "<bucket-name>",
     "KeyPrefix": "database-rest-query/exports",
     "ForcePathStyle": true,
     "PresignedUrlMinutes": 60
   }
 }
 ```
+
+Variables sensibles por entorno:
+- Crea/edita `./.env` con credenciales de DB y S3/Wasabi.
+- Para shell local: `set -a; source .env; set +a`
+- Para Docker: `--env-file .env`
+- La API sustituye placeholders `{{VAR}}` en `appsettings.json` con variables de entorno.
+- Minimo recomendado: `DB_USER`, `DB_PWD`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`.
 
 Significado rapido:
 - `RunMode`: `All`, `Api`, `Worker` para separar API y workers en despliegues independientes.
@@ -159,14 +166,7 @@ docker buildx build \
 3. Levantar contenedor:
 
 ```bash
-docker run --rm --platform linux/amd64 -p 8080:8080 \
-  -e DB2_VALIDATE_ON_START=true \
-  -e DB2_VALIDATE_MODE=odbc \
-  -e DB2_VALIDATE_SYSTEM=192.168.38.2 \
-  -e DB2_VALIDATE_USER=QSOLAP_001 \
-  -e DB2_VALIDATE_PASSWORD=INFQS99999 \
-  -e DB2_VALIDATE_DEFAULT_LIBRARIES=NSOL001 \
-  -e DB2_VALIDATE_FAIL_ON_ERROR=true \
+docker run --rm --platform linux/amd64 --env-file .env -p 8080:8080 \
   database-rest-query:macos-x86
 ```
 
@@ -194,14 +194,7 @@ docker build -f Dockerfile -t database-rest-query:linux .
 3. Levantar contenedor:
 
 ```bash
-docker run --rm -p 8080:8080 \
-  -e DB2_VALIDATE_ON_START=true \
-  -e DB2_VALIDATE_MODE=odbc \
-  -e DB2_VALIDATE_SYSTEM=192.168.38.2 \
-  -e DB2_VALIDATE_USER=QSOLAP_001 \
-  -e DB2_VALIDATE_PASSWORD=INFQS99999 \
-  -e DB2_VALIDATE_DEFAULT_LIBRARIES=NSOL001 \
-  -e DB2_VALIDATE_FAIL_ON_ERROR=true \
+docker run --rm --env-file .env -p 8080:8080 \
   database-rest-query:linux
 ```
 
@@ -215,10 +208,10 @@ Ejemplo de request para SQL Server legacy:
 
 ```json
 {
-  "server": {
-    "type": "sqlserver_legacy",
-    "connstr": "Driver=FreeTDS;Server=genesserver2.gruposoledad.com;Port=1433;Database=soledadbo;Uid=usuario;Pwd=clave;TDS_Version=7.2;"
-  },
+    "server": {
+      "type": "sqlserver_legacy",
+      "connstr": "Driver=FreeTDS;Server=<sql-host>;Port=1433;Database=<database>;Uid=<db-user>;Pwd=<db-password>;TDS_Version=7.2;"
+    },
   "transactionId": "tx-legacy-001",
   "query": "select getdate() as fecha",
   "useQueue": false
@@ -378,7 +371,7 @@ Ejemplo completo para `POST /doQuery` con IBM i Access ODBC:
 {
   "server": {
     "type": "db2-iseries",
-    "connstr": "Driver={IBM i Access ODBC Driver};System=192.168.38.2;Database=S786C9A1;Uid=mi_usuario;Pwd=mi_password;Naming=0;DefaultLibraries=NSOL001;"
+    "connstr": "Driver={IBM i Access ODBC Driver};System=<iseries-host>;Database=<rdb>;Uid=<db-user>;Pwd=<db-password>;Naming=0;DefaultLibraries=<default-lib>;"
   },
   "transactionId": "tx-demo-acs-001",
   "command": {

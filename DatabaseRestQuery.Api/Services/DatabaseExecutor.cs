@@ -43,8 +43,8 @@ public sealed class DatabaseExecutor(
 
         try
         {
-            await using var connection = connectionFactory.Create(server.Type, server.Connstr);
-            await connection.OpenAsync(cancellationToken);
+            await using var connectionLease = await connectionFactory.RentOpenAsync(server.Type, server.Connstr, cancellationToken);
+            var connection = connectionLease.Connection;
 
             await using var command = connection.CreateCommand();
             command.CommandText = effectiveCommandText;
@@ -100,8 +100,8 @@ public sealed class DatabaseExecutor(
         var commandTimeout = request.Command?.CommandTimeout is > 0 ? request.Command.CommandTimeout : 30;
         var stopwatch = Stopwatch.StartNew();
 
-        await using var connection = connectionFactory.Create(server.Type, server.Connstr);
-        await connection.OpenAsync(cancellationToken);
+        await using var connectionLease = await connectionFactory.RentOpenAsync(server.Type, server.Connstr, cancellationToken);
+        var connection = connectionLease.Connection;
 
         await using var command = connection.CreateCommand();
         command.CommandText = effectiveCommandText;

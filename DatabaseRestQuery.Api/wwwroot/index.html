@@ -147,6 +147,14 @@
     </section>
   </main>
 
+  <div id="request-progress" class="progress-overlay hidden" role="status" aria-live="polite" aria-modal="true">
+    <div class="progress-modal">
+      <div class="progress-spinner" aria-hidden="true"></div>
+      <h3>Ejecutando petición</h3>
+      <p id="progress-message">Lanzando solicitud al servidor...</p>
+    </div>
+  </div>
+
   <script src="/app.js"></script>
 </body>
 </html>

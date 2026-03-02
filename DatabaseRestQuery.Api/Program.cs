@@ -11,6 +11,7 @@ var configuredQueueOptions = builder.Configuration.GetSection(QueueOptions.Secti
 builder.Services.Configure<QueueOptions>(builder.Configuration.GetSection(QueueOptions.SectionName));
 builder.Services.Configure<List<ServerConnectionItem>>(builder.Configuration.GetSection("ServerConnections"));
 builder.Services.Configure<S3ExportOptions>(builder.Configuration.GetSection(S3ExportOptions.SectionName));
+builder.Services.Configure<DbConnectionPoolOptions>(builder.Configuration.GetSection(DbConnectionPoolOptions.SectionName));
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddSingleton<IDataSourceCircuitBreaker, DataSourceCircuitBreaker>();
 builder.Services.AddSingleton<IAppMetrics, AppMetrics>();
@@ -401,7 +402,20 @@ static bool TryResolveRequestServer(
 
     if (request.Server is not null)
     {
-        return true;
+        try
+        {
+            var resolvedConnstr = EnvironmentTemplateResolver.ResolveRequired(request.Server.Connstr, "server.connstr");
+            resolvedRequest = request with
+            {
+                Server = request.Server with { Connstr = resolvedConnstr }
+            };
+            return true;
+        }
+        catch (InvalidOperationException ex)
+        {
+            error = ex.Message;
+            return false;
+        }
     }
 
     if (string.IsNullOrWhiteSpace(request.ConnectionName))
@@ -426,10 +440,19 @@ static bool TryResolveRequestServer(
         return false;
     }
 
-    resolvedRequest = request with
+    try
     {
-        ConnectionName = connectionName,
-        Server = new ServerRequest(connection.Type.Trim(), connection.Connstr.Trim())
-    };
-    return true;
+        var resolvedConnstr = EnvironmentTemplateResolver.ResolveRequired(connection.Connstr.Trim(), $"ServerConnections.{connectionName}.Connstr");
+        resolvedRequest = request with
+        {
+            ConnectionName = connectionName,
+            Server = new ServerRequest(connection.Type.Trim(), resolvedConnstr)
+        };
+        return true;
+    }
+    catch (InvalidOperationException ex)
+    {
+        error = ex.Message;
+        return false;
+    }
 }

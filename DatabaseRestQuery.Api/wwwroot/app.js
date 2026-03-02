@@ -11,6 +11,9 @@ const txidWrap = qs("#txid-wrap");
 const txidInput = qs("#txid-input");
 const openapiViewer = qs("#openapi-viewer");
 const endpointDocs = qs("#endpoint-docs");
+const executeButton = qs("#execute-request");
+const progressOverlay = qs("#request-progress");
+const progressMessage = qs("#progress-message");
 
 const endpointDefinitions = [
   {
@@ -239,10 +242,12 @@ async function executeRequest() {
   const endpoint = endpointSelect.value;
   let url = "";
   let init = {};
+  let progressText = "Lanzando solicitud al servidor...";
 
   if (endpoint === "doQuery") {
     url = "/doQuery";
     init = { method: "POST", headers: { "Content-Type": "application/json" }, body: requestBody.value || "{}" };
+    progressText = "Ejecutando POST /doQuery...";
   } else if (endpoint === "checkResponse") {
     const txid = txidInput.value.trim();
     if (!txid) {
@@ -250,18 +255,42 @@ async function executeRequest() {
       return;
     }
     url = `/checkResponse/${encodeURIComponent(txid)}`;
+    progressText = "Consultando estado de transaccion...";
   } else if (endpoint === "queuePendingJobs") {
     url = "/queuePendingJobs";
+    progressText = "Consultando trabajos pendientes...";
   } else if (endpoint === "queuePurge") {
     url = "/queuePurge";
     init = { method: "POST", headers: { "Content-Type": "application/json" }, body: requestBody.value || "{}" };
+    progressText = "Purgando cola de pendientes...";
   } else {
     url = "/health";
+    progressText = "Consultando estado del servicio...";
   }
 
-  const result = await fetchJson(url, init);
-  responseViewer.textContent = JSON.stringify({ status: result.status, body: result.body }, null, 2);
-  await refreshStatus();
+  showProgress(progressText);
+  try {
+    const result = await fetchJson(url, init);
+    responseViewer.textContent = JSON.stringify({ status: result.status, body: result.body }, null, 2);
+    await refreshStatus();
+  } catch (err) {
+    responseViewer.textContent = JSON.stringify({ error: String(err) }, null, 2);
+  } finally {
+    hideProgress();
+  }
+}
+
+function showProgress(message) {
+  progressMessage.textContent = message || "Lanzando solicitud al servidor...";
+  progressOverlay.classList.remove("hidden");
+  executeButton.disabled = true;
+  document.body.classList.add("with-overlay");
+}
+
+function hideProgress() {
+  progressOverlay.classList.add("hidden");
+  executeButton.disabled = false;
+  document.body.classList.remove("with-overlay");
 }
 
 function renderDocs() {

@@ -4,5 +4,5 @@ namespace DatabaseRestQuery.Api.Services;
 
 public interface IDbConnectionFactory
 {
-    DbConnection Create(string serverType, string connectionString);
+    Task<DbConnectionLease> RentOpenAsync(string serverType, string connectionString, CancellationToken cancellationToken);
 }

@@ -119,6 +119,10 @@ button {
   font-weight: 700;
   cursor: pointer;
 }
+button:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+}
 button.danger { background: var(--danger); }
 
 .cards {
@@ -215,6 +219,55 @@ input, select {
   background: #eef6f8;
   padding: 2px 6px;
   border-radius: 6px;
+}
+
+.progress-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 18, 28, 0.42);
+  backdrop-filter: blur(2px);
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+body.with-overlay {
+  cursor: progress;
+}
+
+.progress-modal {
+  width: min(420px, 92vw);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 22px 18px;
+  text-align: center;
+}
+
+.progress-modal h3 {
+  margin: 0 0 6px;
+}
+
+.progress-modal p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.progress-spinner {
+  width: 34px;
+  height: 34px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  border: 3px solid #d2e4e9;
+  border-top-color: var(--primary);
+  animation: progress-spin .8s linear infinite;
+}
+
+@keyframes progress-spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 920px) {
