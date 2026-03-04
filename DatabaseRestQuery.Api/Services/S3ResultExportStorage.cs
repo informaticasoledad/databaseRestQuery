@@ -5,6 +5,7 @@ using DatabaseRestQuery.Api.Infrastructure;
 using DatabaseRestQuery.Api.Models;
 using DatabaseRestQuery.Api.Options;
 using Microsoft.Extensions.Options;
+using System.IO.Compression;
 
 namespace DatabaseRestQuery.Api.Services;
 
@@ -39,61 +40,96 @@ public sealed class S3ResultExportStorage(IOptions<S3ExportOptions> options) : I
             throw new InvalidOperationException("Configuracion S3 incompleta. Revise S3Export en appsettings.");
         }
 
-        var (bytes, contentType, extension) = ResultPayloadSerializer.Serialize(rows, format);
-        var payload = compress ? ResultPayloadSerializer.Gzip(bytes) : bytes;
         var normalizedFormat = ResultPayloadSerializer.NormalizeFormat(format);
+        var effectiveCompress = compress && normalizedFormat != "xlsx";
+        var tempFilePath = Path.Combine(Path.GetTempPath(), $"database-rest-query-export-{Guid.NewGuid():N}.tmp");
+        string contentType;
+        string extension;
 
-        var keyPrefix = keyPrefixValue.Trim('/');
-        var objectKey = $"{keyPrefix}/{DateTime.UtcNow:yyyy/MM/dd}/{transactionId}_{Guid.NewGuid():N}.{extension}";
-        if (compress)
+        try
         {
-            objectKey += ".gz";
+            await using (var tempWriteStream = new FileStream(tempFilePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, useAsync: true))
+            {
+                if (effectiveCompress)
+                {
+                    await using var gzipStream = new GZipStream(tempWriteStream, CompressionLevel.SmallestSize, leaveOpen: true);
+                    (contentType, extension) = ResultPayloadSerializer.SerializeToStream(rows, normalizedFormat, gzipStream);
+                    await gzipStream.FlushAsync(cancellationToken);
+                }
+                else
+                {
+                    (contentType, extension) = ResultPayloadSerializer.SerializeToStream(rows, normalizedFormat, tempWriteStream);
+                }
+
+                await tempWriteStream.FlushAsync(cancellationToken);
+            }
+
+            var keyPrefix = keyPrefixValue.Trim('/');
+            var objectKey = $"{keyPrefix}/{DateTime.UtcNow:yyyy/MM/dd}/{transactionId}_{Guid.NewGuid():N}.{extension}";
+            if (effectiveCompress)
+            {
+                objectKey += ".gz";
+            }
+
+            var s3Config = new AmazonS3Config
+            {
+                ServiceURL = endpointUrl,
+                ForcePathStyle = _options.ForcePathStyle,
+                AuthenticationRegion = region
+            };
+
+            using var client = new AmazonS3Client(accessKey, secretKey, s3Config);
+            await using var uploadStream = new FileStream(tempFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
+
+            var putRequest = new PutObjectRequest
+            {
+                BucketName = bucket,
+                Key = objectKey,
+                InputStream = uploadStream,
+                AutoCloseStream = false,
+                ContentType = contentType
+            };
+
+            if (effectiveCompress)
+            {
+                putRequest.Headers.ContentEncoding = "gzip";
+            }
+
+            await client.PutObjectAsync(putRequest, cancellationToken);
+
+            var expiresAt = DateTime.UtcNow.AddMinutes(Math.Max(1, _options.PresignedUrlMinutes));
+            var url = client.GetPreSignedURL(new GetPreSignedUrlRequest
+            {
+                BucketName = bucket,
+                Key = objectKey,
+                Verb = HttpVerb.GET,
+                Expires = expiresAt
+            });
+
+            return new QueryExportInfo(
+                "s3",
+                bucket,
+                objectKey,
+                url,
+                expiresAt,
+                normalizedFormat,
+                effectiveCompress,
+                uploadStream.Length
+            );
         }
-
-        var s3Config = new AmazonS3Config
+        finally
         {
-            ServiceURL = endpointUrl,
-            ForcePathStyle = _options.ForcePathStyle,
-            AuthenticationRegion = region
-        };
-
-        using var client = new AmazonS3Client(accessKey, secretKey, s3Config);
-        await using var stream = new MemoryStream(payload);
-
-        var putRequest = new PutObjectRequest
-        {
-            BucketName = bucket,
-            Key = objectKey,
-            InputStream = stream,
-            AutoCloseStream = false,
-            ContentType = contentType
-        };
-
-        if (compress)
-        {
-            putRequest.Headers.ContentEncoding = "gzip";
+            try
+            {
+                if (File.Exists(tempFilePath))
+                {
+                    File.Delete(tempFilePath);
+                }
+            }
+            catch
+            {
+                // No-op: temp cleanup best effort.
+            }
         }
-
-        await client.PutObjectAsync(putRequest, cancellationToken);
-
-        var expiresAt = DateTime.UtcNow.AddMinutes(Math.Max(1, _options.PresignedUrlMinutes));
-        var url = client.GetPreSignedURL(new GetPreSignedUrlRequest
-        {
-            BucketName = bucket,
-            Key = objectKey,
-            Verb = HttpVerb.GET,
-            Expires = expiresAt
-        });
-
-        return new QueryExportInfo(
-            "s3",
-            bucket,
-            objectKey,
-            url,
-            expiresAt,
-            normalizedFormat,
-            compress,
-            payload.LongLength
-        );
     }
 }

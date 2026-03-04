@@ -318,7 +318,7 @@ Notas:
 - `responseQueueCallback` es opcional y solo aplica a peticiones encoladas: al finalizar, el worker envía `POST` con la respuesta a esa URL.
 - `exportToS3=true` exporta el resultado a bucket S3/Wasabi y devuelve metadata+URL temporal.
 - `exportFormat` soporta: `json`, `jsonl`, `csv_tab`, `csv_comma`, `csv_pipeline`, `xlsx` (`excel`).
-- `exportCompress=true` comprime el archivo exportado en `gzip`.
+- `exportCompress=true` comprime el archivo exportado en `gzip` (excepto `xlsx/excel`, que ya va comprimido en OpenXML y no se recomprime).
 
 Response:
 

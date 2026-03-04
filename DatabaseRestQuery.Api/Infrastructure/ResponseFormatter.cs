@@ -71,20 +71,28 @@ public static class ResponseFormatter
             return Results.Text(errorCsv, "text/csv; charset=utf-8", Encoding.UTF8, statusCode ?? StatusCodes.Status400BadRequest);
         }
 
-        var bytes = ResultPayloadSerializer.Serialize(response.Result, separator switch
+        var format = separator switch
         {
             '\t' => "csv_tab",
             ',' => "csv_comma",
             _ => "csv_pipeline"
-        }).Bytes;
-        var text = Encoding.UTF8.GetString(bytes);
+        };
+        var downloadName = $"result_{response.TransactionId}.csv";
 
         if (statusCode is { } code && (code < 200 || code > 299))
         {
-            return Results.Text(text, "text/csv; charset=utf-8", Encoding.UTF8, code);
+            return new StreamingResult("text/csv; charset=utf-8", code, null, output =>
+            {
+                ResultPayloadSerializer.SerializeToStream(response.Result, format, output);
+                return Task.CompletedTask;
+            });
         }
 
-        return Results.File(bytes, "text/csv; charset=utf-8", $"result_{response.TransactionId}.csv");
+        return new StreamingResult("text/csv; charset=utf-8", statusCode ?? StatusCodes.Status200OK, downloadName, output =>
+        {
+            ResultPayloadSerializer.SerializeToStream(response.Result, format, output);
+            return Task.CompletedTask;
+        });
     }
 
     private static IResult ToJsonLinesResult(QueryResponse response, int? statusCode)
@@ -112,14 +120,20 @@ public static class ResponseFormatter
             return Results.Text(exportLine, "application/x-ndjson; charset=utf-8", Encoding.UTF8, statusCode ?? StatusCodes.Status200OK);
         }
 
-        var jsonl = ResultPayloadSerializer.ToJsonLines(response.Result);
-        var output = Encoding.UTF8.GetBytes(jsonl);
         if (statusCode is { } code && (code < 200 || code > 299))
         {
-            return Results.Text(jsonl, "application/x-ndjson; charset=utf-8", Encoding.UTF8, code);
+            return new StreamingResult("application/x-ndjson; charset=utf-8", code, null, output =>
+            {
+                ResultPayloadSerializer.SerializeToStream(response.Result, "jsonl", output);
+                return Task.CompletedTask;
+            });
         }
 
-        return Results.File(output, "application/x-ndjson; charset=utf-8", $"result_{response.TransactionId}.jsonl");
+        return new StreamingResult("application/x-ndjson; charset=utf-8", statusCode ?? StatusCodes.Status200OK, $"result_{response.TransactionId}.jsonl", output =>
+        {
+            ResultPayloadSerializer.SerializeToStream(response.Result, "jsonl", output);
+            return Task.CompletedTask;
+        });
     }
 
     private static IResult ToExcelResult(QueryResponse response, int? statusCode)
@@ -131,8 +145,11 @@ public static class ResponseFormatter
                 : Results.BadRequest(response);
         }
 
-        var bytes = ResultPayloadSerializer.Serialize(response.Result, "excel").Bytes;
-        return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"result_{response.TransactionId}.xlsx");
+        return new StreamingResult("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", statusCode ?? StatusCodes.Status200OK, $"result_{response.TransactionId}.xlsx", output =>
+        {
+            ResultPayloadSerializer.SerializeToStream(response.Result, "excel", output);
+            return Task.CompletedTask;
+        });
     }
 
     private static string ToXml(QueryResponse response)
@@ -186,17 +203,7 @@ public static class ResponseFormatter
             return sb.ToString();
         }
 
-        var headers = new List<string>();
-        foreach (var row in response.Result)
-        {
-            foreach (var key in row.Keys)
-            {
-                if (!headers.Contains(key, StringComparer.OrdinalIgnoreCase))
-                {
-                    headers.Add(key);
-                }
-            }
-        }
+        var headers = GetHeaders(response.Result);
 
         sb.Append("<table><thead><tr>");
         foreach (var h in headers)
@@ -220,4 +227,41 @@ public static class ResponseFormatter
         return sb.ToString();
     }
 
+    private static List<string> GetHeaders(IReadOnlyList<Dictionary<string, object?>> rows)
+    {
+        var headers = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in rows)
+        {
+            foreach (var key in row.Keys)
+            {
+                if (seen.Add(key))
+                {
+                    headers.Add(key);
+                }
+            }
+        }
+
+        return headers;
+    }
+
+    private sealed class StreamingResult(
+        string contentType,
+        int statusCode,
+        string? fileDownloadName,
+        Func<Stream, Task> writeBody) : IResult
+    {
+        public async Task ExecuteAsync(HttpContext httpContext)
+        {
+            httpContext.Response.StatusCode = statusCode;
+            httpContext.Response.ContentType = contentType;
+            if (!string.IsNullOrWhiteSpace(fileDownloadName))
+            {
+                httpContext.Response.Headers.ContentDisposition = $"attachment; filename=\"{fileDownloadName}\"";
+            }
+
+            await writeBody(httpContext.Response.Body);
+        }
+    }
 }

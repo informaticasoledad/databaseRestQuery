@@ -34,16 +34,38 @@ public static class ResultPayloadSerializer
         IReadOnlyList<Dictionary<string, object?>> rows,
         string? format)
     {
+        using var output = new MemoryStream();
+        var (contentType, extension) = SerializeToStream(rows, format, output);
+        return (output.ToArray(), contentType, extension);
+    }
+
+    public static (string ContentType, string Extension) SerializeToStream(
+        IReadOnlyList<Dictionary<string, object?>> rows,
+        string? format,
+        Stream output)
+    {
         var normalized = NormalizeFormat(format);
-        return normalized switch
+        switch (normalized)
         {
-            "jsonl" => (Encoding.UTF8.GetBytes(ToJsonLines(rows)), "application/x-ndjson", "jsonl"),
-            "csv_tab" => (Encoding.UTF8.GetBytes(ToCsv(rows, '\t')), "text/csv", "csv"),
-            "csv_comma" => (Encoding.UTF8.GetBytes(ToCsv(rows, ',')), "text/csv", "csv"),
-            "csv_pipeline" => (Encoding.UTF8.GetBytes(ToCsv(rows, '|')), "text/csv", "csv"),
-            "xlsx" => (ToExcelOpenXml(rows), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"),
-            _ => (Encoding.UTF8.GetBytes(JsonSerializer.Serialize(rows)), "application/json", "json")
-        };
+            case "jsonl":
+                WriteJsonLines(rows, output);
+                return ("application/x-ndjson", "jsonl");
+            case "csv_tab":
+                WriteCsv(rows, '\t', output);
+                return ("text/csv", "csv");
+            case "csv_comma":
+                WriteCsv(rows, ',', output);
+                return ("text/csv", "csv");
+            case "csv_pipeline":
+                WriteCsv(rows, '|', output);
+                return ("text/csv", "csv");
+            case "xlsx":
+                WriteExcelOpenXml(rows, output);
+                return ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx");
+            default:
+                JsonSerializer.Serialize(output, rows);
+                return ("application/json", "json");
+        }
     }
 
     public static byte[] Gzip(byte[] input)
@@ -59,41 +81,39 @@ public static class ResultPayloadSerializer
 
     public static string ToJsonLines(IReadOnlyList<Dictionary<string, object?>> rows)
     {
-        if (rows.Count == 0)
-        {
-            return string.Empty;
-        }
-
-        var sb = new StringBuilder();
-        foreach (var row in rows)
-        {
-            sb.Append(JsonSerializer.Serialize(row)).Append('\n');
-        }
-
-        return sb.ToString();
+        using var stream = new MemoryStream();
+        WriteJsonLines(rows, stream);
+        return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static string ToCsv(IReadOnlyList<Dictionary<string, object?>> rows, char separator)
+    private static void WriteJsonLines(IReadOnlyList<Dictionary<string, object?>> rows, Stream output)
     {
         if (rows.Count == 0)
         {
-            return string.Empty;
+            return;
         }
 
-        var headers = new List<string>();
+        using var writer = new StreamWriter(output, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), leaveOpen: true);
         foreach (var row in rows)
         {
-            foreach (var key in row.Keys)
-            {
-                if (!headers.Contains(key, StringComparer.OrdinalIgnoreCase))
-                {
-                    headers.Add(key);
-                }
-            }
+            writer.Write(JsonSerializer.Serialize(row));
+            writer.Write('\n');
         }
 
-        var sb = new StringBuilder();
-        sb.AppendLine(string.Join(separator, headers.Select(h => Escape(h, separator))));
+        writer.Flush();
+    }
+
+    private static void WriteCsv(IReadOnlyList<Dictionary<string, object?>> rows, char separator, Stream output)
+    {
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        var headers = GetHeaders(rows);
+        using var writer = new StreamWriter(output, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), leaveOpen: true);
+
+        writer.WriteLine(string.Join(separator, headers.Select(h => Escape(h, separator))));
 
         foreach (var row in rows)
         {
@@ -103,10 +123,29 @@ public static class ResultPayloadSerializer
                 return Escape(value?.ToString() ?? string.Empty, separator);
             });
 
-            sb.AppendLine(string.Join(separator, line));
+            writer.WriteLine(string.Join(separator, line));
         }
 
-        return sb.ToString();
+        writer.Flush();
+    }
+
+    private static List<string> GetHeaders(IReadOnlyList<Dictionary<string, object?>> rows)
+    {
+        var headers = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in rows)
+        {
+            foreach (var key in row.Keys)
+            {
+                if (seen.Add(key))
+                {
+                    headers.Add(key);
+                }
+            }
+        }
+
+        return headers;
     }
 
     private static string Escape(string value, char separator)
@@ -116,33 +155,20 @@ public static class ResultPayloadSerializer
         return needsQuotes ? $"\"{normalized}\"" : normalized;
     }
 
-    private static byte[] ToExcelOpenXml(IReadOnlyList<Dictionary<string, object?>> rows)
+    private static void WriteExcelOpenXml(IReadOnlyList<Dictionary<string, object?>> rows, Stream output)
     {
-        var headers = new List<string>();
-        foreach (var row in rows)
-        {
-            foreach (var key in row.Keys)
-            {
-                if (!headers.Contains(key, StringComparer.OrdinalIgnoreCase))
-                {
-                    headers.Add(key);
-                }
-            }
-        }
+        var headers = GetHeaders(rows);
 
-        using var stream = new MemoryStream();
-        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
         {
             WriteZipEntry(archive, "[Content_Types].xml", BuildContentTypesXml());
             WriteZipEntry(archive, "_rels/.rels", BuildRootRelsXml());
             WriteZipEntry(archive, "xl/workbook.xml", BuildWorkbookXml());
             WriteZipEntry(archive, "xl/_rels/workbook.xml.rels", BuildWorkbookRelsXml());
-            WriteZipEntry(archive, "xl/worksheets/sheet1.xml", BuildWorksheetXml(headers, rows));
+            WriteWorksheetEntry(archive, "xl/worksheets/sheet1.xml", headers, rows);
             WriteZipEntry(archive, "docProps/core.xml", BuildCorePropsXml());
             WriteZipEntry(archive, "docProps/app.xml", BuildAppPropsXml());
         }
-
-        return stream.ToArray();
     }
 
     private static void WriteZipEntry(ZipArchive archive, string entryName, string xmlContent)
@@ -226,8 +252,10 @@ public static class ResultPayloadSerializer
                """;
     }
 
-    private static string BuildWorksheetXml(IReadOnlyList<string> headers, IReadOnlyList<Dictionary<string, object?>> rows)
+    private static void WriteWorksheetEntry(ZipArchive archive, string entryName, IReadOnlyList<string> headers, IReadOnlyList<Dictionary<string, object?>> rows)
     {
+        var entry = archive.CreateEntry(entryName, CompressionLevel.SmallestSize);
+        using var entryStream = entry.Open();
         var settings = new XmlWriterSettings
         {
             OmitXmlDeclaration = false,
@@ -235,8 +263,7 @@ public static class ResultPayloadSerializer
             Indent = false
         };
 
-        var sb = new StringBuilder();
-        using var writer = XmlWriter.Create(sb, settings);
+        using var writer = XmlWriter.Create(entryStream, settings);
 
         writer.WriteStartDocument();
         writer.WriteStartElement("worksheet", "http://schemas.openxmlformats.org/spreadsheetml/2006/main");
@@ -275,8 +302,6 @@ public static class ResultPayloadSerializer
         writer.WriteEndElement();
         writer.WriteEndDocument();
         writer.Flush();
-
-        return sb.ToString();
     }
 
     private static void WriteCell(XmlWriter writer, int rowIndex, int columnIndex, object? value, bool forceText)
