@@ -26,6 +26,7 @@ public static class ResponseFormatter
             "csv_tab" => ToCsvResult(response, '\t', statusCode),
             "csv_comma" => ToCsvResult(response, ',', statusCode),
             "csv_pipeline" => ToCsvResult(response, '|', statusCode),
+            "excel" => ToExcelResult(response, statusCode),
             _ => statusCode.HasValue
                 ? Results.Json(response, statusCode: statusCode)
                 : Results.Ok(response)
@@ -40,9 +41,26 @@ public static class ResponseFormatter
 
     private static string Normalize(string? responseFormat)
     {
-        return string.IsNullOrWhiteSpace(responseFormat)
-            ? "json"
-            : responseFormat.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(responseFormat))
+        {
+            return "json";
+        }
+
+        var normalized = responseFormat
+            .Trim()
+            .Replace("_", string.Empty, StringComparison.Ordinal)
+            .Replace("-", string.Empty, StringComparison.Ordinal)
+            .ToLowerInvariant();
+
+        return normalized switch
+        {
+            "htmltable" => "html_table",
+            "csvtab" => "csv_tab",
+            "csvcomma" => "csv_comma",
+            "csvpipeline" => "csv_pipeline",
+            "xlsx" => "excel",
+            _ => normalized
+        };
     }
 
     private static IResult ToCsvResult(QueryResponse response, char separator, int? statusCode)
@@ -102,6 +120,19 @@ public static class ResponseFormatter
         }
 
         return Results.File(output, "application/x-ndjson; charset=utf-8", $"result_{response.TransactionId}.jsonl");
+    }
+
+    private static IResult ToExcelResult(QueryResponse response, int? statusCode)
+    {
+        if (!response.Ok)
+        {
+            return statusCode.HasValue
+                ? Results.Json(response, statusCode: statusCode)
+                : Results.BadRequest(response);
+        }
+
+        var bytes = ResultPayloadSerializer.Serialize(response.Result, "excel").Bytes;
+        return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"result_{response.TransactionId}.xlsx");
     }
 
     private static string ToXml(QueryResponse response)

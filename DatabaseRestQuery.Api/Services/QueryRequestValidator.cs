@@ -23,6 +23,8 @@ public sealed class QueryRequestValidator(IOptions<QueueOptions> options) : IQue
         "jsonl",
         "xml",
         "toon",
+        "excel",
+        "xlsx",
         "htmltable",
         "csvtab",
         "csvcomma",
@@ -135,7 +137,7 @@ public sealed class QueryRequestValidator(IOptions<QueueOptions> options) : IQue
         var normalizedResponseFormat = NormalizeResponseFormat(request.ResponseFormat);
         if (!SupportedResponseFormats.Contains(normalizedResponseFormat))
         {
-            errors.Add("responseFormat no soportado. Valores permitidos: json, jsonl, xml, toon, html_table, csv_tab, csv_comma, csv_pipeline.");
+            errors.Add("responseFormat no soportado. Valores permitidos: json, jsonl, xml, toon, html_table, csv_tab, csv_comma, csv_pipeline, excel.");
         }
 
         if (request.CompressResult && normalizedResponseFormat != "json")
@@ -151,9 +153,9 @@ public sealed class QueryRequestValidator(IOptions<QueueOptions> options) : IQue
         if (request.ExportToS3)
         {
             var normalizedExportFormat = NormalizeResponseFormat(request.ExportFormat);
-            if (normalizedExportFormat is not ("json" or "jsonl" or "csvtab" or "csvcomma" or "csvpipeline" or "xlsx" or "excelopenxml"))
+            if (normalizedExportFormat is not ("json" or "jsonl" or "csvtab" or "csvcomma" or "csvpipeline" or "xlsx" or "excel"))
             {
-                errors.Add("exportFormat no soportado. Valores permitidos: json, jsonl, csv_tab, csv_comma, csv_pipeline, xlsx (excel_openxml).");
+                errors.Add("exportFormat no soportado. Valores permitidos: json, jsonl, csv_tab, csv_comma, csv_pipeline, xlsx (excel).");
             }
 
             if (request.StreamResult)

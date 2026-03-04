@@ -25,7 +25,7 @@ public static class ResultPayloadSerializer
             "csvtab" => "csv_tab",
             "csvcomma" => "csv_comma",
             "csvpipeline" => "csv_pipeline",
-            "excelopenxml" => "xlsx",
+            "excel" => "xlsx",
             _ => normalized
         };
     }

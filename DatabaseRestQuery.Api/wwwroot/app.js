@@ -33,10 +33,10 @@ const endpointDefinitions = [
       compressResult: false,
       streamResult: false,
       queuePartition: "tenant-a",
-      responseFormat: "json|jsonl",
+      responseFormat: "json|jsonl|excel",
       responseQueueCallback: "https://mi-sistema/callback",
       exportToS3: false,
-      exportFormat: "jsonl|xlsx|excel_openxml",
+      exportFormat: "jsonl|xlsx|excel",
       exportCompress: true
     },
     output: { transactionId: "tx-001", ok: true, message: "Consulta ejecutada.", result: [{ col: "value" }], compressedResult: null }

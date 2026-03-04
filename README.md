@@ -292,10 +292,10 @@ Request:
   "compressResult": false,
   "streamResult": false,
   "queuePartition": "tenant-a",
-  "responseFormat": "json|jsonl|csv_tab|csv_comma|csv_pipeline|xml|toon|html_table",
+  "responseFormat": "json|jsonl|csv_tab|csv_comma|csv_pipeline|xml|toon|html_table|excel",
   "responseQueueCallback": "https://mi-sistema/callback",
   "exportToS3": false,
-  "exportFormat": "jsonl|xlsx|excel_openxml",
+  "exportFormat": "jsonl|xlsx|excel",
   "exportCompress": true
 }
 ```
@@ -313,11 +313,11 @@ Notas:
 - Si `compressResult=true`, el resultado se devuelve comprimido en ZIP y codificado en Base64.
 - Si `streamResult=true` (solo con `useQueue=false`), la respuesta se transmite en streaming JSON.
 - `queuePartition` permite particionar la cola por cliente/origen/tenant.
-- `responseFormat` soporta: `json`, `jsonl`, `xml`, `toon`, `html_table`, `csv_tab`, `csv_comma`, `csv_pipeline`.
+- `responseFormat` soporta: `json`, `jsonl`, `xml`, `toon`, `html_table`, `csv_tab`, `csv_comma`, `csv_pipeline`, `excel`.
 - El valor predeterminado de `responseFormat` es `json`.
 - `responseQueueCallback` es opcional y solo aplica a peticiones encoladas: al finalizar, el worker envía `POST` con la respuesta a esa URL.
 - `exportToS3=true` exporta el resultado a bucket S3/Wasabi y devuelve metadata+URL temporal.
-- `exportFormat` soporta: `json`, `jsonl`, `csv_tab`, `csv_comma`, `csv_pipeline`, `xlsx` (`excel_openxml`).
+- `exportFormat` soporta: `json`, `jsonl`, `csv_tab`, `csv_comma`, `csv_pipeline`, `xlsx` (`excel`).
 - `exportCompress=true` comprime el archivo exportado en `gzip`.
 
 Response:
