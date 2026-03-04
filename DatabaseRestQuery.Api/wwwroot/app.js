@@ -36,7 +36,7 @@ const endpointDefinitions = [
       responseFormat: "json|jsonl",
       responseQueueCallback: "https://mi-sistema/callback",
       exportToS3: false,
-      exportFormat: "jsonl",
+      exportFormat: "jsonl|xlsx|excel_openxml",
       exportCompress: true
     },
     output: { transactionId: "tx-001", ok: true, message: "Consulta ejecutada.", result: [{ col: "value" }], compressedResult: null }

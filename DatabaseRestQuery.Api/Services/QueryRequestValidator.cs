@@ -151,9 +151,9 @@ public sealed class QueryRequestValidator(IOptions<QueueOptions> options) : IQue
         if (request.ExportToS3)
         {
             var normalizedExportFormat = NormalizeResponseFormat(request.ExportFormat);
-            if (normalizedExportFormat is not ("json" or "jsonl" or "csvtab" or "csvcomma" or "csvpipeline"))
+            if (normalizedExportFormat is not ("json" or "jsonl" or "csvtab" or "csvcomma" or "csvpipeline" or "xlsx" or "excelopenxml"))
             {
-                errors.Add("exportFormat no soportado. Valores permitidos: json, jsonl, csv_tab, csv_comma, csv_pipeline.");
+                errors.Add("exportFormat no soportado. Valores permitidos: json, jsonl, csv_tab, csv_comma, csv_pipeline, xlsx (excel_openxml).");
             }
 
             if (request.StreamResult)

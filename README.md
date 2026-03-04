@@ -295,7 +295,7 @@ Request:
   "responseFormat": "json|jsonl|csv_tab|csv_comma|csv_pipeline|xml|toon|html_table",
   "responseQueueCallback": "https://mi-sistema/callback",
   "exportToS3": false,
-  "exportFormat": "jsonl",
+  "exportFormat": "jsonl|xlsx|excel_openxml",
   "exportCompress": true
 }
 ```
@@ -317,7 +317,7 @@ Notas:
 - El valor predeterminado de `responseFormat` es `json`.
 - `responseQueueCallback` es opcional y solo aplica a peticiones encoladas: al finalizar, el worker envía `POST` con la respuesta a esa URL.
 - `exportToS3=true` exporta el resultado a bucket S3/Wasabi y devuelve metadata+URL temporal.
-- `exportFormat` soporta: `json`, `jsonl`, `csv_tab`, `csv_comma`, `csv_pipeline`.
+- `exportFormat` soporta: `json`, `jsonl`, `csv_tab`, `csv_comma`, `csv_pipeline`, `xlsx` (`excel_openxml`).
 - `exportCompress=true` comprime el archivo exportado en `gzip`.
 
 Response:
