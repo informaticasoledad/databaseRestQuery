@@ -73,7 +73,7 @@ RUN set -eux; \
       mkdir -p /tmp/ibmi-odbc /opt/ibm/iaccess; \
       curl -fL "$IBMI_ODBC_URL" -o /tmp/ibmi-odbc/acs.zip; \
       unzip -q /tmp/ibmi-odbc/acs.zip -d /tmp/ibmi-odbc/extracted; \
-      DRIVER_PATH="$(find /tmp/ibmi-odbc/extracted -type f \\( -name 'libdb2o.so' -o -name 'libdb2o.so.1' \\) | head -n 1)"; \
+      DRIVER_PATH="$(find /tmp/ibmi-odbc/extracted -type f -name 'libdb2o.so' -o -type f -name 'libdb2o.so.1' | head -n 1)"; \
       if [ -z "$DRIVER_PATH" ]; then \
         echo "No se encontro libdb2o.so dentro del paquete ACS." >&2; \
         exit 1; \
@@ -83,7 +83,7 @@ RUN set -eux; \
       rm -rf /tmp/ibmi-odbc; \
     fi; \
     chmod -R a+rX /opt/ibm/iaccess || true; \
-    DB2O_PATH="$(find /opt/ibm/iaccess -type f \( -name 'libdb2o.so.1' -o -name 'libdb2o.so' \) | head -n 1)"; \
+    DB2O_PATH="$(find /opt/ibm/iaccess -type f -name 'libdb2o.so.1' -o -type f -name 'libdb2o.so' | head -n 1)"; \
     if [ -z "$DB2O_PATH" ]; then \
       echo "No se encontro libdb2o.so(.1) en /opt/ibm/iaccess." >&2; \
       exit 1; \
