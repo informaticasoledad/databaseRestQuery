@@ -1,7 +1,7 @@
 version: '3.4'
 
 services:
-  urlshortener:
+  databaserestquery:
     image: databaserestquery
     build:
       context: .
