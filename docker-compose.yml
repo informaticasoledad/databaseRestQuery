@@ -1,0 +1,24 @@
+version: '3.4'
+
+services:
+  urlshortener:
+    image: databaseRestQuery
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - 8888:8080
+    restart: unless-stopped
+    environment:
+      - DB2_VALIDATE_ON_START=true
+      - DB2_VALIDATE_MODE=odbc
+      - DB2_VALIDATE_SYSTEM=192.168.38.2
+      - DB2_VALIDATE_USER=QSOLAP_001
+      - DB2_VALIDATE_PASSWORD=INFQS99999
+      - DB2_VALIDATE_DEFAULT_LIBRARIES=NSOL001
+      - DB2_VALIDATE_FAIL_ON_ERROR=true
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1400
