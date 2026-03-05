@@ -10,7 +10,7 @@ services:
       - 8888:8080
     restart: unless-stopped
     environment:
-      - DB2_VALIDATE_ON_START=true
+      - DB2_VALIDATE_ON_START=false
       - DB2_VALIDATE_MODE=odbc
       - DB2_VALIDATE_SYSTEM=192.168.38.2
       - DB2_VALIDATE_USER=QSOLAP_001
