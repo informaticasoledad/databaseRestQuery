@@ -2,7 +2,7 @@ version: '3.4'
 
 services:
   urlshortener:
-    image: databaseRestQuery
+    image: databaserestquery
     build:
       context: .
       dockerfile: ./Dockerfile
