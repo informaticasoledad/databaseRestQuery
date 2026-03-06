@@ -17,6 +17,8 @@ services:
       - DB2_VALIDATE_PASSWORD=INFQS99999
       - DB2_VALIDATE_DEFAULT_LIBRARIES=NSOL001
       - DB2_VALIDATE_FAIL_ON_ERROR=true
+    env_file:
+      - .env
 networks:
   default:
     driver: bridge
