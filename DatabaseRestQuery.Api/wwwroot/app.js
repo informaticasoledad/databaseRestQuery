@@ -142,7 +142,7 @@ function renderKpis(health) {
     ["Failed", q.failed ?? 0],
     ["DelayedRetry", q.delayedRetry ?? 0],
     ["Resp.MaxItems", policy.maxItems ?? "n/a"],
-    ["Resp.Retention(h)", policy.retentionHours ?? "n/a"]
+    ["Resp.Retention(min)", policy.retentionMinutes ?? "n/a"]
   ];
 
   statusCards.innerHTML = cards

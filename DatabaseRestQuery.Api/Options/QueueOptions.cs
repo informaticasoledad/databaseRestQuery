@@ -24,8 +24,7 @@ public sealed class QueueOptions
     public int RetryDelaySeconds { get; set; } = 5;
     public int ProcessingLeaseSeconds { get; set; } = 120;
     public int CleanupIntervalSeconds { get; set; } = 60;
-    public int CompletedRetentionHours { get; set; } = 24;
-    public int ResponseRetentionHours { get; set; } = 24;
+    public int CompletedRetentionMinutes { get; set; } = 1440;
     public int ResponseQueueMaxItems { get; set; } = 10000;
     public int ResponseQueueTargetItemsAfterPurge { get; set; } = 9000;
     public int MaxRowsLimit { get; set; } = 10000;

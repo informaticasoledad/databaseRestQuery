@@ -345,7 +345,7 @@ app.MapGet("/health", async (IQueueRepository queueRepository, Microsoft.Extensi
         {
             maxItems = queueOptions.ResponseQueueMaxItems,
             targetItemsAfterPurge = queueOptions.ResponseQueueTargetItemsAfterPurge,
-            retentionHours = queueOptions.ResponseRetentionHours
+            retentionMinutes = queueOptions.CompletedRetentionMinutes
         }
     });
 });

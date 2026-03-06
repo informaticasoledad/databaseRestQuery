@@ -43,8 +43,7 @@ Archivo: `DatabaseRestQuery.Api/appsettings.json`
     "RetryDelaySeconds": 5,
     "ProcessingLeaseSeconds": 120,
     "CleanupIntervalSeconds": 60,
-    "CompletedRetentionHours": 24,
-    "ResponseRetentionHours": 24,
+    "CompletedRetentionMinutes": 1440,
     "ResponseQueueMaxItems": 10000,
     "ResponseQueueTargetItemsAfterPurge": 9000,
     "MaxRowsLimit": 10000,
@@ -97,10 +96,9 @@ Significado rapido:
 - `RetryDelaySeconds`: espera entre reintentos.
 - `ProcessingLeaseSeconds`: si un worker se cae y deja un job en `Processing`, se recupera pasado este tiempo.
 - `CleanupIntervalSeconds`: frecuencia de limpieza de jobs `Completed/Failed`.
-- `ResponseRetentionHours`: tiempo maximo de retencion de respuestas (`Completed/Failed`).
 - `ResponseQueueMaxItems`: tamano maximo de la cola de respuestas en SQLite.
 - `ResponseQueueTargetItemsAfterPurge`: objetivo tras purga automatica por capacidad (debe ser menor que `ResponseQueueMaxItems`).
-- `CompletedRetentionHours`: compatibilidad con versiones previas; se toma el menor valor entre este y `ResponseRetentionHours`.
+- `CompletedRetentionMinutes`: tiempo maximo de retencion de respuestas (`Completed/Failed`) en minutos.
 - `Max*`: limites de validacion para proteger el servicio.
 - `S3Export`: destino para exportacion asincrona de resultados grandes (S3/Wasabi).
 

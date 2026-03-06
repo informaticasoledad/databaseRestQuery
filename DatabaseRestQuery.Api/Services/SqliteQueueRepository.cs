@@ -457,10 +457,8 @@ public sealed class SqliteQueueRepository(IOptions<QueueOptions> options, IHostE
 
     private async Task<int> PurgeExpiredResponsesAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
-        var retentionHours = Math.Max(1, _options.ResponseRetentionHours);
-        var legacyRetentionHours = Math.Max(1, _options.CompletedRetentionHours);
-        var effectiveRetentionHours = Math.Min(retentionHours, legacyRetentionHours);
-        var cutoff = DateTime.UtcNow.AddHours(-effectiveRetentionHours);
+        var effectiveRetentionMinutes = Math.Max(1, _options.CompletedRetentionMinutes);
+        var cutoff = DateTime.UtcNow.AddMinutes(-effectiveRetentionMinutes);
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
