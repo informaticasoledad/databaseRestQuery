@@ -14,12 +14,12 @@ RUN dotnet publish DatabaseRestQuery.Api/DatabaseRestQuery.Api.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
+# Fallback opcional para descargar ACS si no hay drivers locales válidos
 ARG IBMI_ODBC_URL=""
 ARG IBMI_IACCESS_DEB_URL=""
 ARG IBMI_IACCESS_INSTALL_FROM_APT="false"
 ARG IBMI_IACCESS_APT_PACKAGE="ibm-iaccess"
 ARG IBMI_IACCESS_APT_LIST_URL="https://public.dhe.ibm.com/software/ibmi/products/odbc/debs/dists/1.1.0/ibmi-acs-1.1.0.list"
-COPY docker/ibmi-odbc/ /opt/ibm/iaccess/
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -50,8 +50,10 @@ RUN set -eux; \
       rm -rf /var/lib/apt/lists/*; \
     fi
 
+# Compatibilidad TLS legacy (si conectas a SQL Server antiguo)
 RUN sed -ri 's/^CipherString[[:space:]]*=.*/CipherString = DEFAULT@SECLEVEL=1/' /etc/ssl/openssl.cnf || true
 
+# Registro FreeTDS
 RUN set -eux; \
     FREETDS_DRIVER_PATH="$(odbcinst -q -d -n 'FreeTDS' >/dev/null 2>&1 && odbcinst -q -d -n 'FreeTDS' | sed -n 's/^Driver[[:space:]]*=[[:space:]]*//p' | head -n 1 || true)"; \
     if [ -z "${FREETDS_DRIVER_PATH:-}" ]; then \
@@ -68,18 +70,21 @@ RUN set -eux; \
         'UsageCount=1' >> /etc/odbcinst.ini; \
     fi
 
+# Carpeta local para drivers cuando construyes desde macOS.
+# Copiamos el bundle completo local para incluir cualquier carpeta adicional
+# requerida por IBM i Access (por ejemplo mensajes/locales si existen).
+COPY docker/ibmi-odbc/ /opt/ibm/iaccess/
+
 RUN set -eux; \
     if [ -n "$IBMI_ODBC_URL" ]; then \
       mkdir -p /tmp/ibmi-odbc /opt/ibm/iaccess; \
       curl -fL "$IBMI_ODBC_URL" -o /tmp/ibmi-odbc/acs.zip; \
       unzip -q /tmp/ibmi-odbc/acs.zip -d /tmp/ibmi-odbc/extracted; \
-      DRIVER_PATH="$(find /tmp/ibmi-odbc/extracted -type f \\( -name 'libdb2o.so' -o -name 'libdb2o.so.1' \\) | head -n 1)"; \
-      if [ -z "$DRIVER_PATH" ]; then \
-        echo "No se encontro libdb2o.so dentro del paquete ACS." >&2; \
-        exit 1; \
+      DRIVER_PATH="$(find /tmp/ibmi-odbc/extracted -type f \( -name 'libdb2o.so' -o -name 'libdb2o.so.1' \) | head -n 1)"; \
+      if [ -n "$DRIVER_PATH" ]; then \
+        DRIVER_DIR="$(dirname "$DRIVER_PATH")"; \
+        cp -a "$DRIVER_DIR"/. /opt/ibm/iaccess/; \
       fi; \
-      DRIVER_DIR="$(dirname "$DRIVER_PATH")"; \
-      cp -a "$DRIVER_DIR"/. /opt/ibm/iaccess/; \
       rm -rf /tmp/ibmi-odbc; \
     fi; \
     chmod -R a+rX /opt/ibm/iaccess || true; \

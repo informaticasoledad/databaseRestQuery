@@ -233,7 +233,9 @@ docker builder prune -f
 2. Creacion de imagen:
 
 ```bash
-docker build -f Dockerfile -t database-rest-query:linux .
+docker build \
+  -f Dockerfile \
+  -t database-rest-query:linux .
 ```
 
 3. Levantar contenedor:
