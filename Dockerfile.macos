@@ -17,7 +17,7 @@ WORKDIR /app
 # Fallback opcional para descargar ACS si no hay drivers locales válidos
 ARG IBMI_ODBC_URL=""
 ARG IBMI_IACCESS_DEB_URL=""
-ARG IBMI_IACCESS_INSTALL_FROM_APT="false"
+ARG IBMI_IACCESS_INSTALL_FROM_APT="true"
 ARG IBMI_IACCESS_APT_PACKAGE="ibm-iaccess"
 ARG IBMI_IACCESS_APT_LIST_URL="https://public.dhe.ibm.com/software/ibmi/products/odbc/debs/dists/1.1.0/ibmi-acs-1.1.0.list"
 
