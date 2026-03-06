@@ -3,7 +3,7 @@ version: '3.4'
 services:
   databaserestquery:
     image: databaserestquery
-    platform: linux/amd64
+#    platform: linux/amd64
     build:
       context: .
       dockerfile: ./Dockerfile
